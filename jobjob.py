@@ -5,23 +5,23 @@ from http.client import HTTPResponse
 from random import random
 from time import sleep
 import feedparser
+from typing import Union
+import concurrent.futures
 
 
-TIMES_TO_RESET_SETUP = 10  # how many craws until changing proxy/header?
-GET_TIMEOUT = 20  # how long do we wait per request?
+GET_TIMEOUT = 5  # how long do we wait per request?
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-SLEEP_BETWEEN_REQUEST = 5
-SLEEP_ON_FAILED = 4
-
+CRAWLING_BATCH = 6
+NUMBER_OF_WORKERS = CRAWLING_BATCH
+SLEEP_BETWEEN_BATCHES = 10
 
 class Downloader:
     def __init__(self, timeout=GET_TIMEOUT):
         self.headers_pool = self.get_headers_pool()
         self.proxy_pool = self.get_proxy_pool()
-        self.reset_counter = TIMES_TO_RESET_SETUP
         self.timeout = timeout
         self.setup_downloader()
         print(
@@ -29,9 +29,7 @@ class Downloader:
         )
 
     def __repr__(self):
-        return repr(
-            f"<Downloader with {self.timeout}s timeout and {self.reset_counter} crawls left>"
-        )
+        return repr(f"<Downloader with {self.timeout}s timeout>")
 
     @classmethod
     def get_proxy_pool(cls):
@@ -87,40 +85,32 @@ class Downloader:
         proxy_support = request.ProxyHandler(self.proxy)
         opener = request.build_opener(proxy_support)
         request.install_opener(opener)
-        self.proxy_handler = proxy_support
 
     def setup_downloader(self):
         self.get_headers()
         self.get_proxy()
 
-    def check_reset(self):
-        self.reset_counter -= 1
-        if self.reset_counter <= 0:
-            self.setup_downloader()
-            self.reset_counter = TIMES_TO_RESET_SETUP
-            print(
-                f"Resetting downloader. Last used: {self.proxy['http']} - {self.header['User-Agent']}"
-            )
-
     def get_site_response(self, url: str) -> HTTPResponse:
-        self.check_reset()
         while True:
             try:
                 response = self.get_request(url)
-                print(f"Success - {response.status} - {url}")
+                print(f"Success - {self.proxy['http']} - {url}")
                 break
             except error.URLError as e:
-                if hasattr(e, "reason"):
-                    print(
-                        f"Failed to reach server - {e.reason} - {url} - {self.proxy['http']}"
-                    )
-                elif hasattr(e, "code"):
-                    print(
-                        f"Server couldn't fulfill request - {e.code} - {url} - {self.proxy['http']}"
-                    )
-                sleep(random() * SLEEP_ON_FAILED)
+                print(f"Failed - {self.proxy['http']} - {url} - {e}")
                 self.setup_downloader()
         return response
+
+    def get_site_content(self, url: str) -> str:
+        while True:
+            try:
+                response = self.get_request(url)
+                print(f"Success - {self.proxy['http']} - {url}")
+                break
+            except error.URLError as e:
+                print(f"Failed - {self.proxy['http']} - {url} - {e}")
+                self.setup_downloader()
+        return response.read()
 
     def get_request(self, url: str) -> HTTPResponse:
         r = request.Request(url, headers=self.header)
@@ -131,12 +121,28 @@ class Downloader:
         r = request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         return request.urlopen(r, timeout=GET_TIMEOUT)
 
+    def concurrent_request(self, urls: list):
+        # We can use a with statement to ensure threads are cleaned up promptly
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+
+            # Start the load operations and mark each future with its URL
+            future_to_url = {
+                executor.submit(self.get_site_content, url): url for url in urls
+            }
+
+            for future in concurrent.futures.as_completed(future_to_url):
+                url = future_to_url[future]
+                try:
+                    data = future.result()
+                except Exception as exc:
+                    print(f"{url} generated an exception: {exc}")
+
 
 class SOSpider:
-    def __init__(self, data):
+    def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
         self.content = data
 
-    def extract_url_feed(self):
+    def extract_urls_feed(self):
         self.to_crawl = [
             self.remove_parameters_url(entry["link"])
             for entry in self.content["entries"]
@@ -146,33 +152,47 @@ class SOSpider:
     def remove_parameters_url(url: str):
         return url.split("?")[0]
 
+    @staticmethod
+    def chunks(lst: list, chunk: int):
+        for i in range(0, len(lst), chunk):
+            yield lst[i : i + chunk]
+
+    def crawling_batches(self):
+        return self.chunks(self.to_crawl, CRAWLING_BATCH)
+
 
 if __name__ == "__main__":
+
     d = Downloader()
 
     query = "python"
     city = "london"
     salary = "60000"
-    url = f"https://stackoverflow.com/jobs/feed?"
-    url_q = f"https://stackoverflow.com/jobs/feed?q={query}"
-    url_s = f"https://stackoverflow.com/jobs/feed?s={salary}"
-    url_c = f"https://stackoverflow.com/jobs/feed?l={city}"
-    url_full = (
-        f"https://stackoverflow.com/jobs/feed?q={query}&l={city}&s={salary}&c=GBP"
-    )
+    base_url = f"https://stackoverflow.com/jobs/feed"
+    url_q = f"{base_url}?q={query}"
+    url_s = f"{base_url}?s={salary}"
+    url_c = f"{base_url}?l={city}"
+    url = f"{base_url}?q={query}&l={city}&s={salary}"
 
-    while True:
+  
+    ### get main site (no proxy used here)
+    response = feedparser.parse(r"/Users/ps/repos/jobjob/pythonlondon60k.txt")
+    # response = feedparser.parse(url)
 
-        ### get main site (no proxy used here)
-        response = feedparser.parse(url)
+    ## create instance of spider for that site with the contents
+    spider = SOSpider(response)
 
-        ## create instance of spider for that site with the contents
-        spider = SOSpider(response)
+    ## get all links to jobs - store them in downloader? in spider?
+    spider.extract_urls_feed()
 
-        ## get all links to jobs - store them in downloader? in spider?
-        spider.extract_url_feed()
-
-        ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
-
-        sleep(random() * SLEEP_BETWEEN_REQUEST)
+    ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
+    for batch in spider.crawling_batches():
+        print(batch)
+        d.concurrent_request(batch)
+        # sleep(random() * SLEEP_BETWEEN_BATCHES)
         break
+
+
+    # proxies in the uk? europe? multiprocessing + proxies lookup
+    # what do we do with the concurrent requests?
+
