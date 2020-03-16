@@ -1,12 +1,14 @@
 from itertools import cycle
 from lxml.html import fromstring, HtmlElement
-from urllib import request, error
+from urllib import request, error, parse
 from http.client import HTTPResponse
 from random import random
 from time import sleep
 import feedparser
-from typing import Union
+from typing import Union, List, Dict
+from dataclasses import dataclass
 import concurrent.futures
+from datetime import datetime
 
 
 GET_TIMEOUT = 5  # how long do we wait per request?
@@ -14,9 +16,52 @@ URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 6
+CRAWLING_BATCH = 3
 NUMBER_OF_WORKERS = CRAWLING_BATCH
 SLEEP_BETWEEN_BATCHES = 10
+
+
+class BaseSpider:
+    @staticmethod
+    def remove_parameters_url(url: str):
+        return url.split("?")[0]
+
+    @staticmethod
+    def chunks(lst: list, chunk: int):
+        for i in range(0, len(lst), chunk):
+            yield lst[i : i + chunk]
+
+    @classmethod
+    def crawling_batches(cls, links: List[str]):
+        return cls.chunks(links, CRAWLING_BATCH)
+
+
+class SOSpider(BaseSpider):
+    def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
+        self.content = data
+        self.jobs = []
+
+    def extract_urls_feed(self):
+        self.to_crawl = [
+            self.remove_parameters_url(entry["link"])
+            for entry in self.content["entries"]
+        ]
+
+    @classmethod
+    def build_job(cls, data):
+        return Job(
+            title=cls.get_title(data),
+            id=1,
+            link="",
+            company="Bento",
+            location="London",
+            raw_data=data,
+        )
+
+    @staticmethod
+    def get_title(data: str):
+        return data.xpath("//h1[contains(@class, 'headline')]/a/text()")[0]
+
 
 class Downloader:
     def __init__(self, timeout=GET_TIMEOUT):
@@ -121,44 +166,39 @@ class Downloader:
         r = request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         return request.urlopen(r, timeout=GET_TIMEOUT)
 
-    def concurrent_request(self, urls: list):
-        # We can use a with statement to ensure threads are cleaned up promptly
+    def concurrent_request(self, urls: list, spider: SOSpider):
         with concurrent.futures.ThreadPoolExecutor() as executor:
-
-            # Start the load operations and mark each future with its URL
             future_to_url = {
                 executor.submit(self.get_site_content, url): url for url in urls
             }
-
             for future in concurrent.futures.as_completed(future_to_url):
                 url = future_to_url[future]
                 try:
-                    data = future.result()
+                    data = fromstring(future.result())
                 except Exception as exc:
                     print(f"{url} generated an exception: {exc}")
+                else:
+                    spider.jobs.append(Job.MAPPING[parse.urlparse(url).netloc](data))
+                    print(f"Loaded {url}")
 
 
-class SOSpider:
-    def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
-        self.content = data
+@dataclass
+class Job:
+    id: int
+    title: str
+    link: str
+    company: str
+    location: str
+    min_salary: int = 0
+    max_salary: int = 0
+    date_posted: datetime = None
+    details: List[Dict[str, str]] = None
+    technologies: List[str] = None
+    text: str = ""
+    benefits: str = ""
+    raw_data: str = ""
 
-    def extract_urls_feed(self):
-        self.to_crawl = [
-            self.remove_parameters_url(entry["link"])
-            for entry in self.content["entries"]
-        ]
-
-    @staticmethod
-    def remove_parameters_url(url: str):
-        return url.split("?")[0]
-
-    @staticmethod
-    def chunks(lst: list, chunk: int):
-        for i in range(0, len(lst), chunk):
-            yield lst[i : i + chunk]
-
-    def crawling_batches(self):
-        return self.chunks(self.to_crawl, CRAWLING_BATCH)
+    MAPPING = {"stackoverflow.com": SOSpider.build_job}
 
 
 if __name__ == "__main__":
@@ -174,7 +214,6 @@ if __name__ == "__main__":
     url_c = f"{base_url}?l={city}"
     url = f"{base_url}?q={query}&l={city}&s={salary}"
 
-  
     ### get main site (no proxy used here)
     response = feedparser.parse(r"/Users/ps/repos/jobjob/pythonlondon60k.txt")
     # response = feedparser.parse(url)
@@ -186,12 +225,15 @@ if __name__ == "__main__":
     spider.extract_urls_feed()
 
     ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
-    for batch in spider.crawling_batches():
-        print(batch)
-        d.concurrent_request(batch)
-        # sleep(random() * SLEEP_BETWEEN_BATCHES)
-        break
+    for batch in list(spider.crawling_batches(spider.to_crawl))[:1]:
+        print(f"\n\n-- Starting {batch}\n")
+        d.concurrent_request(batch, spider)
+        print("\n-- batch ended\n\n")
+        sleep(random() * SLEEP_BETWEEN_BATCHES)
 
+    import pdb
+
+    pdb.set_trace()
 
     # proxies in the uk? europe? multiprocessing + proxies lookup
     # what do we do with the concurrent requests?
