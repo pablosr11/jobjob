@@ -8,7 +8,9 @@ import feedparser
 from typing import Union, List, Dict
 from dataclasses import dataclass
 import concurrent.futures
+from ast import literal_eval
 from datetime import datetime
+from abc import abstractmethod, ABC
 
 
 GET_TIMEOUT = 5  # how long do we wait per request?
@@ -16,12 +18,13 @@ URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 3
+CRAWLING_BATCH = 5
+NUMBER_OF_BATCHES = 2
 NUMBER_OF_WORKERS = CRAWLING_BATCH
 SLEEP_BETWEEN_BATCHES = 10
 
 
-class BaseSpider:
+class BaseSpider(ABC):
     @staticmethod
     def remove_parameters_url(url: str):
         return url.split("?")[0]
@@ -35,6 +38,10 @@ class BaseSpider:
     def crawling_batches(cls, links: List[str]):
         return cls.chunks(links, CRAWLING_BATCH)
 
+    @abstractmethod
+    def add_job(self, data):
+        ...
+
 
 class SOSpider(BaseSpider):
     def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
@@ -47,20 +54,124 @@ class SOSpider(BaseSpider):
             for entry in self.content["entries"]
         ]
 
+    def add_job(self, data: bytes):
+        tree = fromstring(data)
+        self.jobs.append(self.build_job(tree))
+        # persist
+
+    @staticmethod
+    def clean_up_text(text):
+        unwanted_chars = ["\\n", "\t", "\\r", ":", "\xa0"]
+        for char in unwanted_chars:
+            text = text.replace(char, "").strip()
+            text = text.replace("â\x80\x93", "-")
+        return text
+
+    @staticmethod
+    def list_to_n_tuple(lst: List, size: int = 2):
+        return dict(zip(lst[::size], lst[1::size]))
+
     @classmethod
-    def build_job(cls, data):
+    def build_job(cls, data: HtmlElement):
+        json_data = literal_eval(
+            data.xpath("//script[contains(@type,'application/ld+json')]/text()")[
+                0
+            ].strip()
+        )
         return Job(
             title=cls.get_title(data),
-            id=1,
-            link="",
-            company="Bento",
-            location="London",
+            id=cls.get_id(data),
+            link=cls.get_link(data),
+            company=cls.get_company(data),
+            city=cls.get_city(json_data),
+            postal_code=cls.get_postal_code(json_data),
+            min_salary=cls.get_min_salary(json_data),
+            max_salary=cls.get_max_salary(json_data),
+            date_posted=cls.get_date_posted(json_data),
+            technologies=cls.get_technologies(data),
+            details=cls.get_details(data),
+            benefits=cls.get_benefits(data),
+            text=cls.get_text(data),
             raw_data=data,
         )
 
     @staticmethod
     def get_title(data: str):
-        return data.xpath("//h1[contains(@class, 'headline')]/a/text()")[0]
+        return data.xpath("//h1[contains(@class, 'headline')]/a/text()")
+
+    @staticmethod
+    def get_id(data: str):
+        return data.xpath("//head/link[@rel='canonical']/@href")[0].split("/")[-2]
+
+    @staticmethod
+    def get_link(data: str):
+        return data.xpath("//head/link[@rel='canonical']/@href")
+
+    @staticmethod
+    def get_company(data: str):
+        return data.xpath(
+            "//a[contains(@class,'fc-black-700') or contains(@class, 'employer')]/text()"
+        )
+
+    @staticmethod
+    def get_city(json_data: str):
+        return (
+            json_data.get("jobLocation", {})[0]
+            .get("address", {})
+            .get("addressLocality", None)
+        )
+
+    @staticmethod
+    def get_postal_code(json_data: str):
+        return (
+            json_data.get("jobLocation", {})[0]
+            .get("address", {})
+            .get("postalCode", None)
+        )
+
+    @staticmethod
+    def get_min_salary(json_data: Dict):
+        return json_data.get("baseSalary", {}).get("value", {}).get("minValue", None)
+
+    @staticmethod
+    def get_max_salary(json_data: Dict):
+        return json_data.get("baseSalary", {}).get("value", {}).get("maxValue", None)
+
+    @staticmethod
+    def get_date_posted(json_data: str):
+        date = json_data.get("datePosted", None)
+        return datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y")
+
+    @staticmethod
+    def get_details(data: str):
+        all_details = [
+            SOSpider.clean_up_text(x)
+            for x in data.xpath(
+                "//section/div[contains(@class,'job-details')]/div/div//text()"
+            )
+            if SOSpider.clean_up_text(x)
+        ]
+        return SOSpider.list_to_n_tuple(all_details)
+
+    @staticmethod
+    def get_technologies(data: str):
+        return data.xpath("//section[@class]/div/a/text()")
+
+    @staticmethod
+    def get_benefits(data: str):
+        return [
+            x.strip()
+            for x in data.xpath("//section[contains(@class, 'benefits')]/ul/li/@title")
+            if x.strip()
+        ]
+
+    @staticmethod
+    def get_text(data: str):
+        return [
+            x.strip()
+            for x in data.xpath("//section[contains(@class, 'body')]//text()")
+            if x.strip()
+        ]
 
 
 class Downloader:
@@ -174,11 +285,11 @@ class Downloader:
             for future in concurrent.futures.as_completed(future_to_url):
                 url = future_to_url[future]
                 try:
-                    data = fromstring(future.result())
+                    data = future.result()
                 except Exception as exc:
                     print(f"{url} generated an exception: {exc}")
                 else:
-                    spider.jobs.append(Job.MAPPING[parse.urlparse(url).netloc](data))
+                    spider.add_job(data)
                     print(f"Loaded {url}")
 
 
@@ -188,7 +299,8 @@ class Job:
     title: str
     link: str
     company: str
-    location: str
+    city: str
+    postal_code: str
     min_salary: int = 0
     max_salary: int = 0
     date_posted: datetime = None
@@ -198,8 +310,8 @@ class Job:
     benefits: str = ""
     raw_data: str = ""
 
-    MAPPING = {"stackoverflow.com": SOSpider.build_job}
 
+MAPPING_SPIDER = {"stackoverflow.com": SOSpider}
 
 if __name__ == "__main__":
 
@@ -213,28 +325,28 @@ if __name__ == "__main__":
     url_s = f"{base_url}?s={salary}"
     url_c = f"{base_url}?l={city}"
     url = f"{base_url}?q={query}&l={city}&s={salary}"
+    url_domain = parse.urlparse(url).netloc
 
     ### get main site (no proxy used here)
     response = feedparser.parse(r"/Users/ps/repos/jobjob/pythonlondon60k.txt")
     # response = feedparser.parse(url)
 
     ## create instance of spider for that site with the contents
-    spider = SOSpider(response)
+    spider = MAPPING_SPIDER[url_domain](response)
 
     ## get all links to jobs - store them in downloader? in spider?
     spider.extract_urls_feed()
 
     ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
-    for batch in list(spider.crawling_batches(spider.to_crawl))[:1]:
-        print(f"\n\n-- Starting {batch}\n")
+    for batch in list(spider.crawling_batches(spider.to_crawl))[:NUMBER_OF_BATCHES]:
+        print(f"\n-- Starting {batch}\n")
         d.concurrent_request(batch, spider)
-        print("\n-- batch ended\n\n")
+        print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
     import pdb
 
     pdb.set_trace()
 
-    # proxies in the uk? europe? multiprocessing + proxies lookup
-    # what do we do with the concurrent requests?
+    #persist in database, test collection happens correctly for larges number of jobs, docker images
 
