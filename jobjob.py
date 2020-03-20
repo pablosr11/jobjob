@@ -8,9 +8,10 @@ import feedparser
 from typing import Union, List, Dict
 from dataclasses import dataclass
 import concurrent.futures
-from ast import literal_eval
 from datetime import datetime
 from abc import abstractmethod, ABC
+import json
+from unicodedata import normalize
 
 
 GET_TIMEOUT = 5  # how long do we wait per request?
@@ -73,11 +74,20 @@ class SOSpider(BaseSpider):
 
     @classmethod
     def build_job(cls, data: HtmlElement):
-        json_data = literal_eval(
-            data.xpath("//script[contains(@type,'application/ld+json')]/text()")[
-                0
-            ].strip()
-        )
+
+        try:
+            # normal form NFKD will replace all compatibility characters with their equivalents
+            normalized = normalize(
+                "NKFD",
+                data.xpath("//script[contains(@type,'application/ld+json')]/text()")[
+                    0
+                ].strip(),
+            )
+            json_data = json.loads(normalized)
+        except Exception as e:
+            print(f"""Error on {cls.get_link(data)}\n{e}\n""")
+            return None
+
         return Job(
             title=cls.get_title(data),
             id=cls.get_id(data),
@@ -317,30 +327,30 @@ if __name__ == "__main__":
 
     d = Downloader()
 
-    query = "python"
+    query = "devops"
     city = "london"
-    salary = "60000"
+    salary = "80000"
     base_url = f"https://stackoverflow.com/jobs/feed"
     url_q = f"{base_url}?q={query}"
     url_s = f"{base_url}?s={salary}"
     url_c = f"{base_url}?l={city}"
-    url = f"{base_url}?q={query}&l={city}&s={salary}"
-    url_domain = parse.urlparse(url).netloc
+    start_url = f"{base_url}?q={query}&l={city}&s={salary}"
+    url_domain = parse.urlparse(start_url).netloc
 
     ### get main site (no proxy used here)
-    response = feedparser.parse(r"/Users/ps/repos/jobjob/pythonlondon60k.txt")
-    # response = feedparser.parse(url)
+    # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
+    feed_tree = feedparser.parse(start_url)
 
     ## create instance of spider for that site with the contents
-    spider = MAPPING_SPIDER[url_domain](response)
+    _spider = MAPPING_SPIDER[url_domain](feed_tree)
 
     ## get all links to jobs - store them in downloader? in spider?
-    spider.extract_urls_feed()
+    _spider.extract_urls_feed()
 
     ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
-    for batch in list(spider.crawling_batches(spider.to_crawl))[:NUMBER_OF_BATCHES]:
+    for batch in list(_spider.crawling_batches(_spider.to_crawl))[:NUMBER_OF_BATCHES]:
         print(f"\n-- Starting {batch}\n")
-        d.concurrent_request(batch, spider)
+        d.concurrent_request(batch, _spider)
         print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
@@ -348,5 +358,5 @@ if __name__ == "__main__":
 
     pdb.set_trace()
 
-    #persist in database, test collection happens correctly for larges number of jobs, docker images
+    # persist in database, test collection happens correctly for larges number of jobs, docker images
 
