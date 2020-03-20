@@ -1,0 +1,5 @@
+name: jobjob
+dependencies:
+  - python=3.8
+  - lxml=4.5
+  - feedparser=5.2.1

@@ -338,8 +338,8 @@ if __name__ == "__main__":
     url_domain = parse.urlparse(start_url).netloc
 
     ### get main site (no proxy used here)
-    # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
-    feed_tree = feedparser.parse(start_url)
+    feed_tree = feedparser.parse(r"pythonlondon60k.txt")
+    # feed_tree = feedparser.parse(start_url)
 
     ## create instance of spider for that site with the contents
     _spider = MAPPING_SPIDER[url_domain](feed_tree)
@@ -359,4 +359,3 @@ if __name__ == "__main__":
     pdb.set_trace()
 
     # persist in database, test collection happens correctly for larges number of jobs, docker images
-
