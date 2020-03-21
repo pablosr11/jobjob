@@ -1,17 +1,18 @@
 from itertools import cycle
-from lxml.html import fromstring, HtmlElement
 from urllib import request, error, parse
 from http.client import HTTPResponse
 from random import random
 from time import sleep
-import feedparser
 from typing import Union, List, Dict
 from dataclasses import dataclass
-import concurrent.futures
 from datetime import datetime
 from abc import abstractmethod, ABC
-import json
 from unicodedata import normalize
+import concurrent.futures
+import json
+
+from lxml.html import fromstring, HtmlElement
+import feedparser
 
 
 GET_TIMEOUT = 5  # how long do we wait per request?
@@ -46,7 +47,13 @@ class BaseSpider(ABC):
 
 class SOSpider(BaseSpider):
     def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
+        # main site to scrape links from
         self.content = data
+
+        # links to crawl
+        self.to_crawl = None
+
+        # List of jobs scraped on this session - filled in by the downloader
         self.jobs = []
 
     def extract_urls_feed(self):
@@ -186,8 +193,14 @@ class SOSpider(BaseSpider):
 
 class Downloader:
     def __init__(self, timeout=GET_TIMEOUT):
+        # Collect list of headers/proxies
         self.headers_pool = self.get_headers_pool()
         self.proxy_pool = self.get_proxy_pool()
+
+        # header and proxy are set on setup
+        self.header = None
+        self.proxy = None
+
         self.timeout = timeout
         self.setup_downloader()
         print(
@@ -358,4 +371,9 @@ if __name__ == "__main__":
 
     pdb.set_trace()
 
-    # persist in database, test collection happens correctly for larges number of jobs, docker images
+    # persist in database, test collection happens correctly for larges number of jobs, docker images - SMALL FT and couple UT
+    # https://fastapi.tiangolo.com/tutorial/sql-databases/
+
+    ## Auto remove container on stop, and store data under postgres-data
+    # https://medium.com/faun/postgresql-in-docker-mount-volume-3220fbd0afc4
+    # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/postgres-data:/var/lib/postgresql/data -d postgres:12
