@@ -9,6 +9,9 @@ from abc import abstractmethod, ABC
 from unicodedata import normalize
 import concurrent.futures
 import json
+import socket
+
+socket.setdefaulttimeout(90)
 
 from lxml.html import tostring, fromstring, HtmlElement
 import feedparser
@@ -18,13 +21,13 @@ from database_app.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 
-GET_TIMEOUT = 7  # how long do we wait per request?
+GET_TIMEOUT = 10  # how long do we wait per request?
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 7  # how many jobs do we parse concurrently
-NUMBER_OF_BATCHES = 100  # how many batches of job do we go for?
+CRAWLING_BATCH = 5  # how many jobs do we parse concurrently
+NUMBER_OF_BATCHES = 1  # how many batches of job do we go for?
 NUMBER_OF_WORKERS = CRAWLING_BATCH * 2
 SLEEP_BETWEEN_BATCHES = 15
 
@@ -52,20 +55,36 @@ class SOSpider(BaseSpider):
     def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
         # main site to scrape links from
         self.content = data
-
         # links to crawl
         self.to_crawl = None
-
         # List of jobs scraped on this session - filled in by the downloader
         self.jobs = []
 
         self.db = SessionLocal()
 
+    # is it too slow to check for links before scraping?
     def extract_urls_feed(self):
         self.to_crawl = [
             self.remove_parameters_url(entry["link"])
             for entry in self.content["entries"]
+            if not crud.get_job_by_link(
+                self.db, self.remove_parameters_url(entry["link"])
+            )
         ]
+
+    def persist_details(self, details: Dict, job_id: int):
+        return crud.create_job_detail(
+            self.db,
+            models.Detail(
+                job_type=details.get("Job type", ""),
+                role=details.get("Role", ""),
+                experience_level=details.get("Experience level", ""),
+                industry=details.get("Industry", ""),
+                company_size=details.get("Company size", ""),
+                company_type=details.get("Company type", ""),
+                job_id=job_id,
+            ),
+        )
 
     def persist_skills(self, skills: List, job_id: int):
         return [
@@ -73,7 +92,7 @@ class SOSpider(BaseSpider):
             for skill in skills
         ]
 
-    def persist(self, job: models.Job, skills: models.Skill):
+    def persist(self, job: models.Job, skills: List, details: Dict[str, str]):
         db_job = crud.get_job(self.db, job.job_id)
         if db_job:
             print(f"== Job - {db_job.title} already exists")
@@ -81,16 +100,17 @@ class SOSpider(BaseSpider):
 
         new_job = crud.create_job(self.db, job)
         new_skills = self.persist_skills(skills, new_job.id)
+        new_details = self.persist_details(details, new_job.id)
         print(f"== Added - {new_job.title} with {len(new_skills)} skills")
 
-        return new_job, new_skills
+        return new_job, new_skills, new_details
 
     def add_job(self, data: bytes):
         tree = fromstring(data)
         job = self.build_job(tree)
         skills = self.get_skills(tree)
-        job_persisted, skills_persisted = self.persist(job, skills)
-        self.jobs.append(job_persisted)
+        details = self.get_details(tree)
+        self.persist(job, skills, details)
 
     @staticmethod
     def clean_up_text(text):
@@ -119,8 +139,6 @@ class SOSpider(BaseSpider):
             min_salary=cls.get_min_salary(json_data),
             max_salary=cls.get_max_salary(json_data),
             date_posted=cls.get_date_posted(json_data),
-            # skills=cls.get_skills(data),
-            # details=cls.get_details(data),
             benefits=cls.get_benefits(data),
             text=cls.get_text(data),
             raw_data=tostring(data),
@@ -356,9 +374,9 @@ if __name__ == "__main__":
 
     d = Downloader()
 
-    query = "software"
+    query = "excel"
     city = "london"
-    salary = "60000"
+    salary = "20000"
     base_url = f"https://stackoverflow.com/jobs/feed"
     url_q = f"{base_url}?q={query}"
     url_s = f"{base_url}?s={salary}"
@@ -383,12 +401,11 @@ if __name__ == "__main__":
         print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
-    # persist in database (Add details, dont scrape if job in DB),
-    # test collection happens correctly for larges number of jobs,
-    # docker images
+    # PERSIST QUERIES
+    # test collection happens correctly for larges number of jobs - RUN 500
     # SMALL FT and couple UT
     # run scraping from api server
-    # https://fastapi.tiangolo.com/tutorial/sql-databases/#crud-utils
+    # docker images
 
     ## Auto remove container on stop, and store data under postgres-data
     # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12

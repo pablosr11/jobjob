@@ -33,3 +33,15 @@ def create_job_skill(db: Session, skill: models.Skill):
     db.commit()
     db.refresh(db_skill)
     return db_skill
+
+
+def get_details(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Detail).offset(skip).limit(limit).all()
+
+
+def create_job_detail(db: Session, detail: models.Detail):
+    db_detail = detail
+    db.add(db_detail)
+    db.commit()
+    db.refresh(db_detail)
+    return db_detail

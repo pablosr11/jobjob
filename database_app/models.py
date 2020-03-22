@@ -22,7 +22,7 @@ class Job(Base):
     raw_data = Column(Text)
 
     skills = relationship("Skill", back_populates="job")
-    # details = relationship("Detail", back_populates="job")
+    details = relationship("Detail", back_populates="job")
     # queries = relationship("Query", back_populates="job")
 
 class Skill(Base):
@@ -33,19 +33,19 @@ class Skill(Base):
 
     job = relationship("Job", back_populates="skills")
 
-# class Detail(Base):
-#     __tablename__ = "details"
+class Detail(Base):
+    __tablename__ = "details"
 
-#     id = Column(Integer, primary_key=True, index=True)
-#     job_type = Column(String)
-#     role = Column(String)
-#     experience_level = Column(String)
-#     industry = Column(String)
-#     company_size = Column(String)
-#     company_type = Column(String)
-#     job_id = Column(Integer, ForeignKey("jobs.id"))
+    id = Column(Integer, primary_key=True, index=True)
+    job_type = Column(String)
+    role = Column(String)
+    experience_level = Column(String)
+    industry = Column(String)
+    company_size = Column(String)
+    company_type = Column(String)
+    job_id = Column(Integer, ForeignKey("jobs.id"))
 
-#     job = relationship("Job", back_populates="details")
+    job = relationship("Job", back_populates="details")
 
 
 # class Query(Base):
