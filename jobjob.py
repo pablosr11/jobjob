@@ -12,18 +12,62 @@ import concurrent.futures
 import json
 
 from lxml.html import fromstring, HtmlElement
+from sqlalchemy.orm import Session
 import feedparser
 
+from database_app import crud, models
+from database_app.database import SessionLocal, engine
+
+models.Base.metadata.create_all(bind=engine)
 
 GET_TIMEOUT = 5  # how long do we wait per request?
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 5
-NUMBER_OF_BATCHES = 2
+CRAWLING_BATCH = 3
+NUMBER_OF_BATCHES = 1
 NUMBER_OF_WORKERS = CRAWLING_BATCH
 SLEEP_BETWEEN_BATCHES = 10
+
+
+@dataclass
+class Job:
+
+    job_id: int
+    title: str
+    link: str
+    company: str
+    city: str
+    postal_code: str
+    min_salary: int = 0
+    max_salary: int = 0
+    date_posted: datetime = None
+    id: int = ""  # this gets created on the DB
+    # details: List[Dict[str, str]] = None
+    # skills: List[str] = None
+    text: str = ""
+    benefits: str = ""
+    # raw_data: HtmlElement = ""
+
+    def asdict(self):
+        return {
+            # "id": self.id,
+            "job_id": self.job_id,
+            "title": self.title,
+            "link": self.link,
+            "company": self.company,
+            "city": self.city,
+            "postal_code": self.postal_code,
+            "min_salary": self.min_salary,
+            "max_salary": self.max_salary,
+            "date_posted": self.date_posted,
+            # "details": self.details,
+            # "skills": self.skills,
+            "text": self.text,
+            "benefits": self.benefits,
+            # "raw_data": self.raw_data,
+        }
 
 
 class BaseSpider(ABC):
@@ -62,10 +106,20 @@ class SOSpider(BaseSpider):
             for entry in self.content["entries"]
         ]
 
+    def persist_job(self, job: Job):
+        db = SessionLocal()
+        db_job = crud.get_job(db, job.job_id)
+        if db_job:
+            print(f"== Job {job.title} already exists")
+            return db_job
+        return crud.create_job(db, job)
+
     def add_job(self, data: bytes):
         tree = fromstring(data)
-        self.jobs.append(self.build_job(tree))
+        job = self.build_job(tree)
         # persist
+        persisted = self.persist_job(job)
+        self.jobs.append(persisted)
 
     @staticmethod
     def clean_up_text(text):
@@ -79,25 +133,24 @@ class SOSpider(BaseSpider):
     def list_to_n_tuple(lst: List, size: int = 2):
         return dict(zip(lst[::size], lst[1::size]))
 
+    @staticmethod
+    def safe_pop(something):
+        try:
+            var = something.pop()
+        except AttributeError:
+            var = something
+        except IndexError:
+            var = ""
+        return var
+
     @classmethod
     def build_job(cls, data: HtmlElement):
 
-        try:
-            # normal form NFKD will replace all compatibility characters with their equivalents
-            normalized = normalize(
-                "NKFD",
-                data.xpath("//script[contains(@type,'application/ld+json')]/text()")[
-                    0
-                ].strip(),
-            )
-            json_data = json.loads(normalized)
-        except Exception as e:
-            print(f"""Error on {cls.get_link(data)}\n{e}\n""")
-            return None
+        json_data = cls.get_json_data(data)
 
         return Job(
             title=cls.get_title(data),
-            id=cls.get_id(data),
+            job_id=cls.get_id(data),
             link=cls.get_link(data),
             company=cls.get_company(data),
             city=cls.get_city(json_data),
@@ -105,16 +158,33 @@ class SOSpider(BaseSpider):
             min_salary=cls.get_min_salary(json_data),
             max_salary=cls.get_max_salary(json_data),
             date_posted=cls.get_date_posted(json_data),
-            technologies=cls.get_technologies(data),
-            details=cls.get_details(data),
+            # skills=cls.get_skills(data),
+            # details=cls.get_details(data),
             benefits=cls.get_benefits(data),
             text=cls.get_text(data),
-            raw_data=data,
+            # raw_data=data,
         )
+
+    @classmethod
+    def get_json_data(cls, data: str):
+        try:
+            # normal form NFKD will replace all compatibility characters with their equivalents
+            normalized = normalize(
+                "NFKD",
+                data.xpath("//script[contains(@type,'application/ld+json')]/text()")[
+                    0
+                ].strip(),
+            )
+            json_data = json.loads(normalized)
+        except ValueError as exc:
+            json_data = {}
+            print(f"""Error on {cls.get_link(data)}\n{exc}\n""")
+
+        return json_data
 
     @staticmethod
     def get_title(data: str):
-        return data.xpath("//h1[contains(@class, 'headline')]/a/text()")
+        return data.xpath("//h1[contains(@class, 'headline')]/a/text()")[0]
 
     @staticmethod
     def get_id(data: str):
@@ -122,13 +192,13 @@ class SOSpider(BaseSpider):
 
     @staticmethod
     def get_link(data: str):
-        return data.xpath("//head/link[@rel='canonical']/@href")
+        return data.xpath("//head/link[@rel='canonical']/@href")[0]
 
     @staticmethod
     def get_company(data: str):
         return data.xpath(
             "//a[contains(@class,'fc-black-700') or contains(@class, 'employer')]/text()"
-        )
+        )[0]
 
     @staticmethod
     def get_city(json_data: str):
@@ -157,7 +227,8 @@ class SOSpider(BaseSpider):
     @staticmethod
     def get_date_posted(json_data: str):
         date = json_data.get("datePosted", None)
-        return datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        return datetime.strptime(date, "%Y-%m-%d")
+        # return datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y").date()
 
     @staticmethod
     def get_details(data: str):
@@ -171,24 +242,30 @@ class SOSpider(BaseSpider):
         return SOSpider.list_to_n_tuple(all_details)
 
     @staticmethod
-    def get_technologies(data: str):
+    def get_skills(data: str):
         return data.xpath("//section[@class]/div/a/text()")
 
     @staticmethod
     def get_benefits(data: str):
-        return [
-            x.strip()
-            for x in data.xpath("//section[contains(@class, 'benefits')]/ul/li/@title")
-            if x.strip()
-        ]
+        return ". ".join(
+            [
+                x.strip()
+                for x in data.xpath(
+                    "//section[contains(@class, 'benefits')]/ul/li/@title"
+                )
+                if x.strip()
+            ]
+        )
 
     @staticmethod
     def get_text(data: str):
-        return [
-            x.strip()
-            for x in data.xpath("//section[contains(@class, 'body')]//text()")
-            if x.strip()
-        ]
+        return " ".join(
+            [
+                x.strip()
+                for x in data.xpath("//section[contains(@class, 'body')]//text()")
+                if x.strip()
+            ]
+        )
 
 
 class Downloader:
@@ -206,9 +283,6 @@ class Downloader:
         print(
             f"- Downloader initialized\n- IP: {self.proxy['http']}\n- UA: {self.header['User-Agent']}"
         )
-
-    def __repr__(self):
-        return repr(f"<Downloader with {self.timeout}s timeout>")
 
     @classmethod
     def get_proxy_pool(cls):
@@ -310,28 +384,10 @@ class Downloader:
                 try:
                     data = future.result()
                 except Exception as exc:
-                    print(f"{url} generated an exception: {exc}")
+                    print(f"Not Loaded {url} generated an exception: {exc}")
                 else:
                     spider.add_job(data)
                     print(f"Loaded {url}")
-
-
-@dataclass
-class Job:
-    id: int
-    title: str
-    link: str
-    company: str
-    city: str
-    postal_code: str
-    min_salary: int = 0
-    max_salary: int = 0
-    date_posted: datetime = None
-    details: List[Dict[str, str]] = None
-    technologies: List[str] = None
-    text: str = ""
-    benefits: str = ""
-    raw_data: str = ""
 
 
 MAPPING_SPIDER = {"stackoverflow.com": SOSpider}
@@ -367,13 +423,11 @@ if __name__ == "__main__":
         print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
-    import pdb
-
-    pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     # persist in database, test collection happens correctly for larges number of jobs, docker images - SMALL FT and couple UT
-    # https://fastapi.tiangolo.com/tutorial/sql-databases/
+    # https://fastapi.tiangolo.com/tutorial/sql-databases/#crud-utils
+    # REDIS + celery = https://blog.miguelgrinberg.com/post/using-celery-with-flask
 
     ## Auto remove container on stop, and store data under postgres-data
-    # https://medium.com/faun/postgresql-in-docker-mount-volume-3220fbd0afc4
-    # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/postgres-data:/var/lib/postgresql/data -d postgres:12
+    # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12
