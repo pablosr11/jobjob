@@ -4,15 +4,13 @@ from http.client import HTTPResponse
 from random import random
 from time import sleep
 from typing import Union, List, Dict
-from dataclasses import dataclass
 from datetime import datetime
 from abc import abstractmethod, ABC
 from unicodedata import normalize
 import concurrent.futures
 import json
 
-from lxml.html import fromstring, HtmlElement
-from sqlalchemy.orm import Session
+from lxml.html import tostring, fromstring, HtmlElement
 import feedparser
 
 from database_app import crud, models
@@ -20,54 +18,15 @@ from database_app.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 
-GET_TIMEOUT = 5  # how long do we wait per request?
+GET_TIMEOUT = 7  # how long do we wait per request?
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 3
-NUMBER_OF_BATCHES = 1
-NUMBER_OF_WORKERS = CRAWLING_BATCH
-SLEEP_BETWEEN_BATCHES = 10
-
-
-@dataclass
-class Job:
-
-    job_id: int
-    title: str
-    link: str
-    company: str
-    city: str
-    postal_code: str
-    min_salary: int = 0
-    max_salary: int = 0
-    date_posted: datetime = None
-    id: int = ""  # this gets created on the DB
-    # details: List[Dict[str, str]] = None
-    # skills: List[str] = None
-    text: str = ""
-    benefits: str = ""
-    # raw_data: HtmlElement = ""
-
-    def asdict(self):
-        return {
-            # "id": self.id,
-            "job_id": self.job_id,
-            "title": self.title,
-            "link": self.link,
-            "company": self.company,
-            "city": self.city,
-            "postal_code": self.postal_code,
-            "min_salary": self.min_salary,
-            "max_salary": self.max_salary,
-            "date_posted": self.date_posted,
-            # "details": self.details,
-            # "skills": self.skills,
-            "text": self.text,
-            "benefits": self.benefits,
-            # "raw_data": self.raw_data,
-        }
+CRAWLING_BATCH = 7  # how many jobs do we parse concurrently
+NUMBER_OF_BATCHES = 100  # how many batches of job do we go for?
+NUMBER_OF_WORKERS = CRAWLING_BATCH * 2
+SLEEP_BETWEEN_BATCHES = 15
 
 
 class BaseSpider(ABC):
@@ -100,26 +59,38 @@ class SOSpider(BaseSpider):
         # List of jobs scraped on this session - filled in by the downloader
         self.jobs = []
 
+        self.db = SessionLocal()
+
     def extract_urls_feed(self):
         self.to_crawl = [
             self.remove_parameters_url(entry["link"])
             for entry in self.content["entries"]
         ]
 
-    def persist_job(self, job: Job):
-        db = SessionLocal()
-        db_job = crud.get_job(db, job.job_id)
+    def persist_skills(self, skills: List, job_id: int):
+        return [
+            crud.create_job_skill(self.db, models.Skill(title=skill, job_id=job_id))
+            for skill in skills
+        ]
+
+    def persist(self, job: models.Job, skills: models.Skill):
+        db_job = crud.get_job(self.db, job.job_id)
         if db_job:
-            print(f"== Job {job.title} already exists")
-            return db_job
-        return crud.create_job(db, job)
+            print(f"== Job - {db_job.title} already exists")
+            return db_job, db_job.skills
+
+        new_job = crud.create_job(self.db, job)
+        new_skills = self.persist_skills(skills, new_job.id)
+        print(f"== Added - {new_job.title} with {len(new_skills)} skills")
+
+        return new_job, new_skills
 
     def add_job(self, data: bytes):
         tree = fromstring(data)
         job = self.build_job(tree)
-        # persist
-        persisted = self.persist_job(job)
-        self.jobs.append(persisted)
+        skills = self.get_skills(tree)
+        job_persisted, skills_persisted = self.persist(job, skills)
+        self.jobs.append(job_persisted)
 
     @staticmethod
     def clean_up_text(text):
@@ -133,22 +104,12 @@ class SOSpider(BaseSpider):
     def list_to_n_tuple(lst: List, size: int = 2):
         return dict(zip(lst[::size], lst[1::size]))
 
-    @staticmethod
-    def safe_pop(something):
-        try:
-            var = something.pop()
-        except AttributeError:
-            var = something
-        except IndexError:
-            var = ""
-        return var
-
     @classmethod
     def build_job(cls, data: HtmlElement):
 
         json_data = cls.get_json_data(data)
 
-        return Job(
+        return models.Job(
             title=cls.get_title(data),
             job_id=cls.get_id(data),
             link=cls.get_link(data),
@@ -162,7 +123,7 @@ class SOSpider(BaseSpider):
             # details=cls.get_details(data),
             benefits=cls.get_benefits(data),
             text=cls.get_text(data),
-            # raw_data=data,
+            raw_data=tostring(data),
         )
 
     @classmethod
@@ -281,7 +242,7 @@ class Downloader:
         self.timeout = timeout
         self.setup_downloader()
         print(
-            f"- Downloader initialized\n- IP: {self.proxy['http']}\n- UA: {self.header['User-Agent']}"
+            f"- Downloader init\n- IP: {self.proxy['http']}\n- UA: {self.header['User-Agent']}"
         )
 
     @classmethod
@@ -384,10 +345,9 @@ class Downloader:
                 try:
                     data = future.result()
                 except Exception as exc:
-                    print(f"Not Loaded {url} generated an exception: {exc}")
+                    print(f"Not Loaded - {url} generated an exception: {exc}")
                 else:
                     spider.add_job(data)
-                    print(f"Loaded {url}")
 
 
 MAPPING_SPIDER = {"stackoverflow.com": SOSpider}
@@ -396,9 +356,9 @@ if __name__ == "__main__":
 
     d = Downloader()
 
-    query = "devops"
+    query = "software"
     city = "london"
-    salary = "80000"
+    salary = "60000"
     base_url = f"https://stackoverflow.com/jobs/feed"
     url_q = f"{base_url}?q={query}"
     url_s = f"{base_url}?s={salary}"
@@ -407,8 +367,8 @@ if __name__ == "__main__":
     url_domain = parse.urlparse(start_url).netloc
 
     ### get main site (no proxy used here)
-    feed_tree = feedparser.parse(r"pythonlondon60k.txt")
-    # feed_tree = feedparser.parse(start_url)
+    # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
+    feed_tree = feedparser.parse(start_url)
 
     ## create instance of spider for that site with the contents
     _spider = MAPPING_SPIDER[url_domain](feed_tree)
@@ -423,11 +383,12 @@ if __name__ == "__main__":
         print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
-    # import pdb; pdb.set_trace()
-
-    # persist in database, test collection happens correctly for larges number of jobs, docker images - SMALL FT and couple UT
+    # persist in database (Add details, dont scrape if job in DB),
+    # test collection happens correctly for larges number of jobs,
+    # docker images
+    # SMALL FT and couple UT
+    # run scraping from api server
     # https://fastapi.tiangolo.com/tutorial/sql-databases/#crud-utils
-    # REDIS + celery = https://blog.miguelgrinberg.com/post/using-celery-with-flask
 
     ## Auto remove container on stop, and store data under postgres-data
     # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12

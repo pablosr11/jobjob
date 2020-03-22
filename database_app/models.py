@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Text, PickleType
+from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Text
 from sqlalchemy.orm import relationship
 
 from database_app.database import Base
@@ -17,30 +17,42 @@ class Job(Base):
     min_salary = Column(Integer, index=True, nullable=True)
     max_salary = Column(Integer, index=True, nullable=True)
     date_posted = Column(DateTime, nullable=True)
-
-    # skills = relationship("Skill", back_populates="job")
-
     text = Column(Text)
     benefits = Column(String)
-    # details = Column(String) # Multiple Key values
-    # raw_data = Column(PickleType) # Lxml Element instance
+    raw_data = Column(Text)
 
+    skills = relationship("Skill", back_populates="job")
+    # details = relationship("Detail", back_populates="job")
+    # queries = relationship("Query", back_populates="job")
 
-# class Skill(Base):
-#     __tablename__ = "skills"
+class Skill(Base):
+    __tablename__ = "skills"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"))
+
+    job = relationship("Job", back_populates="skills")
+
+# class Detail(Base):
+#     __tablename__ = "details"
+
 #     id = Column(Integer, primary_key=True, index=True)
-#     title = Column(String, index=True)
+#     job_type = Column(String)
+#     role = Column(String)
+#     experience_level = Column(String)
+#     industry = Column(String)
+#     company_size = Column(String)
+#     company_type = Column(String)
 #     job_id = Column(Integer, ForeignKey("jobs.id"))
 
-#     job = relationship("Job", back_populates="skills")
+#     job = relationship("Job", back_populates="details")
 
 
-# need relationships tables between job-query and job-skill
-
-###### Not in v1
 # class Query(Base):
 #     __tablename__ = "queries"
 
+#     id = Column(Integer, primary_key=True, index=True)
+#     query = Column(String, index=True)
+#     job_id = Column(Integer, ForeignKey("jobs.id"))
 
-# class Detail(Base):
-#     ...
+#     job = relationship("Job", back_populates="queries")
