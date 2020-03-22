@@ -1,2 +1,3 @@
 .vscode/
-postgres-data/
+docker_volumes/
+__pycache__
