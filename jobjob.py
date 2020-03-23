@@ -26,9 +26,9 @@ URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 5  # how many jobs do we parse concurrently
-NUMBER_OF_BATCHES = 1  # how many batches of job do we go for?
-NUMBER_OF_WORKERS = CRAWLING_BATCH * 2
+CRAWLING_BATCH = 7  # how many jobs do we parse concurrently
+NUMBER_OF_BATCHES = 100  # how many batches of job do we go for?
+NUMBER_OF_WORKERS = CRAWLING_BATCH
 SLEEP_BETWEEN_BATCHES = 15
 
 
@@ -52,13 +52,14 @@ class BaseSpider(ABC):
 
 
 class SOSpider(BaseSpider):
-    def __init__(self, data: Union[feedparser.FeedParserDict, HTTPResponse]):
+    def __init__(
+        self, data: Union[feedparser.FeedParserDict, HTTPResponse], query: str
+    ):
         # main site to scrape links from
         self.content = data
+        self.query = query
         # links to crawl
         self.to_crawl = None
-        # List of jobs scraped on this session - filled in by the downloader
-        self.jobs = []
 
         self.db = SessionLocal()
 
@@ -71,6 +72,11 @@ class SOSpider(BaseSpider):
                 self.db, self.remove_parameters_url(entry["link"])
             )
         ]
+
+    def persist_query(self, query: str, job_id: int):
+        return crud.create_job_queries(
+            self.db, models.Query(query=query, job_id=job_id)
+        )
 
     def persist_details(self, details: Dict, job_id: int):
         return crud.create_job_detail(
@@ -101,9 +107,10 @@ class SOSpider(BaseSpider):
         new_job = crud.create_job(self.db, job)
         new_skills = self.persist_skills(skills, new_job.id)
         new_details = self.persist_details(details, new_job.id)
+        new_query = self.persist_query(self.query, new_job.id)
         print(f"== Added - {new_job.title} with {len(new_skills)} skills")
 
-        return new_job, new_skills, new_details
+        return new_job, new_skills, new_details, new_query
 
     def add_job(self, data: bytes):
         tree = fromstring(data)
@@ -374,14 +381,10 @@ if __name__ == "__main__":
 
     d = Downloader()
 
-    query = "excel"
+    _query = "python"
     city = "london"
-    salary = "20000"
     base_url = f"https://stackoverflow.com/jobs/feed"
-    url_q = f"{base_url}?q={query}"
-    url_s = f"{base_url}?s={salary}"
-    url_c = f"{base_url}?l={city}"
-    start_url = f"{base_url}?q={query}&l={city}&s={salary}"
+    start_url = f"{base_url}?q={_query}&l={city}"
     url_domain = parse.urlparse(start_url).netloc
 
     ### get main site (no proxy used here)
@@ -389,7 +392,7 @@ if __name__ == "__main__":
     feed_tree = feedparser.parse(start_url)
 
     ## create instance of spider for that site with the contents
-    _spider = MAPPING_SPIDER[url_domain](feed_tree)
+    _spider = MAPPING_SPIDER[url_domain](feed_tree, _query)
 
     ## get all links to jobs - store them in downloader? in spider?
     _spider.extract_urls_feed()
@@ -401,11 +404,11 @@ if __name__ == "__main__":
         print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
-    # PERSIST QUERIES
-    # test collection happens correctly for larges number of jobs - RUN 500
-    # SMALL FT and couple UT
     # run scraping from api server
+    # how to fix - The read operation timed out sslError
+    # SMALL FT and couple UT
     # docker images
+    # add indeed, linkedin, google for jobs, glassdoor, dice
 
     ## Auto remove container on stop, and store data under postgres-data
     # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12

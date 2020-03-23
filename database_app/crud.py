@@ -15,12 +15,11 @@ def get_jobs(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_job(db: Session, job: models.Job):
-    db_job = job
-    db.add(db_job)
+    db.add(job)
     db.commit()
     # Refresh if you will use the instance and need any new data from database, like id
-    db.refresh(db_job)
-    return db_job
+    db.refresh(job)
+    return job
 
 
 def get_skills(db: Session, skip: int = 0, limit: int = 100):
@@ -28,11 +27,10 @@ def get_skills(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_job_skill(db: Session, skill: models.Skill):
-    db_skill = skill
-    db.add(db_skill)
+    db.add(skill)
     db.commit()
-    db.refresh(db_skill)
-    return db_skill
+    db.refresh(skill)
+    return skill
 
 
 def get_details(db: Session, skip: int = 0, limit: int = 100):
@@ -40,8 +38,18 @@ def get_details(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_job_detail(db: Session, detail: models.Detail):
-    db_detail = detail
-    db.add(db_detail)
+    db.add(detail)
     db.commit()
-    db.refresh(db_detail)
-    return db_detail
+    db.refresh(detail)
+    return detail
+
+
+def get_queries(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Query).offset(skip).limit(limit).all()
+
+
+def create_job_queries(db: Session, query: models.Query):
+    db.add(query)
+    db.commit()
+    db.refresh(query)
+    return query
