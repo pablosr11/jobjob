@@ -1,0 +1,23 @@
+- run scraping from api server + reorganise (https://fastapi.tiangolo.com/tutorial/query-params-str-validations/)
+- add table to count queries
+- SMALL FT and couple UT
+- docker images
+
+# add indeed, linkedin, google for jobs, glassdoor, dice
+
+
+
+================================================
+================================================
+===== DATABASE
+# Auto remove container on stop, and store data under postgres-data
+docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12
+
+# get in
+docker exec -it db-pg -U postgres
+
+================================================
+================================================
+===== API 
+# Run server on 127.0.0.1:800
+uvicorn main:app --reload

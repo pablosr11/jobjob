@@ -1,3 +1,4 @@
 .vscode/
-docker_volumes/
+.docker_volumes/
 __pycache__
+.pytest_cache/

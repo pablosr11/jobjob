@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from database_app import models
 
 
+# get jobs by company, salary(between min and max), location
+
 def get_job(db: Session, job_id: int):
     return db.query(models.Job).filter(models.Job.job_id == job_id).first()
 
