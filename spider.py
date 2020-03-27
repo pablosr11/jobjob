@@ -9,9 +9,6 @@ from abc import abstractmethod, ABC
 from unicodedata import normalize
 import concurrent.futures
 import json
-import socket
-
-socket.setdefaulttimeout(90)
 
 from lxml.html import tostring, fromstring, HtmlElement
 import feedparser
@@ -21,15 +18,19 @@ from database_app.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 
-GET_TIMEOUT = 10  # how long do we wait per request?
+GET_TIMEOUT = 20  # how long do we wait per request? the read timeout comes from here
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 7  # how many jobs do we parse concurrently
-NUMBER_OF_BATCHES = 100  # how many batches of job do we go for?
+CRAWLING_BATCH = 5  # how many jobs do we parse concurrently
+NUMBER_OF_BATCHES = 2  # how many batches of job do we go for?
 NUMBER_OF_WORKERS = CRAWLING_BATCH
 SLEEP_BETWEEN_BATCHES = 15
+
+QUERY = "junior"
+CITY = "london"
+BASE_URL = f"https://stackoverflow.com/jobs/feed"
 
 
 class BaseSpider(ABC):
@@ -65,6 +66,7 @@ class SOSpider(BaseSpider):
 
     # is it too slow to check for links before scraping?
     def extract_urls_feed(self):
+        """Add to_crawl links to the spider if we dont have them in the db already"""
         self.to_crawl = [
             self.remove_parameters_url(entry["link"])
             for entry in self.content["entries"]
@@ -98,7 +100,15 @@ class SOSpider(BaseSpider):
             for skill in skills
         ]
 
-    def persist(self, job: models.Job, skills: List, details: Dict[str, str]):
+    def persist_rawdata(self, raw_data: str, job_id: int):
+        return crud.create_job_rawdata(
+            self.db, models.JobRawData(job_id=job_id, raw_data=raw_data)
+        )
+
+    # should inherit all model instances? or all non-model instances?
+    def persist(
+        self, job: models.Job, skills: List, details: Dict[str, str], raw_data: str
+    ):
         db_job = crud.get_job(self.db, job.job_id)
         if db_job:
             print(f"== Job - {db_job.title} already exists")
@@ -108,16 +118,19 @@ class SOSpider(BaseSpider):
         new_skills = self.persist_skills(skills, new_job.id)
         new_details = self.persist_details(details, new_job.id)
         new_query = self.persist_query(self.query, new_job.id)
+        new_raw_data = self.persist_rawdata(raw_data, new_job.id)
+
         print(f"== Added - {new_job.title} with {len(new_skills)} skills")
 
-        return new_job, new_skills, new_details, new_query
+        return new_job, new_skills, new_details, new_query, new_raw_data
 
     def add_job(self, data: bytes):
         tree = fromstring(data)
         job = self.build_job(tree)
         skills = self.get_skills(tree)
         details = self.get_details(tree)
-        self.persist(job, skills, details)
+        raw_data = tostring(tree)
+        self.persist(job, skills, details, raw_data)
 
     @staticmethod
     def clean_up_text(text):
@@ -148,7 +161,6 @@ class SOSpider(BaseSpider):
             date_posted=cls.get_date_posted(json_data),
             benefits=cls.get_benefits(data),
             text=cls.get_text(data),
-            raw_data=tostring(data),
         )
 
     @classmethod
@@ -214,7 +226,6 @@ class SOSpider(BaseSpider):
     def get_date_posted(json_data: str):
         date = json_data.get("datePosted", None)
         return datetime.strptime(date, "%Y-%m-%d")
-        # return datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y").date()
 
     @staticmethod
     def get_details(data: str):
@@ -370,7 +381,9 @@ class Downloader:
                 try:
                     data = future.result()
                 except Exception as exc:
-                    print(f"Not Loaded - {url} generated an exception: {exc}")
+                    print(
+                        f"\n==========Not Loaded - {url} generated an exception: {exc}\n"
+                    )
                 else:
                     spider.add_job(data)
 
@@ -381,10 +394,7 @@ if __name__ == "__main__":
 
     d = Downloader()
 
-    _query = "python"
-    city = "london"
-    base_url = f"https://stackoverflow.com/jobs/feed"
-    start_url = f"{base_url}?q={_query}&l={city}"
+    start_url = f"{BASE_URL}?q={QUERY}&l={CITY}"
     url_domain = parse.urlparse(start_url).netloc
 
     ### get main site (no proxy used here)
@@ -392,23 +402,15 @@ if __name__ == "__main__":
     feed_tree = feedparser.parse(start_url)
 
     ## create instance of spider for that site with the contents
-    _spider = MAPPING_SPIDER[url_domain](feed_tree, _query)
+    _spider = MAPPING_SPIDER[url_domain](feed_tree, QUERY)
 
     ## get all links to jobs - store them in downloader? in spider?
     _spider.extract_urls_feed()
 
     ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
+    # too many things happening here to create iterator
     for batch in list(_spider.crawling_batches(_spider.to_crawl))[:NUMBER_OF_BATCHES]:
         print(f"\n-- Starting {batch}\n")
         d.concurrent_request(batch, _spider)
         print("\n-- batch ended\n")
         sleep(random() * SLEEP_BETWEEN_BATCHES)
-
-    # run scraping from api server
-    # how to fix - The read operation timed out sslError
-    # SMALL FT and couple UT
-    # docker images
-    # add indeed, linkedin, google for jobs, glassdoor, dice
-
-    ## Auto remove container on stop, and store data under postgres-data
-    # docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-learn/jobjob/docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12

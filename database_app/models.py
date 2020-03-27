@@ -19,11 +19,12 @@ class Job(Base):
     date_posted = Column(DateTime, nullable=True)
     text = Column(Text)
     benefits = Column(String)
-    raw_data = Column(Text)
 
+    raw_data = relationship("JobRawData", backref="jobs", uselist=False)
     skills = relationship("Skill", back_populates="job")
     details = relationship("Detail", back_populates="job")
     queries = relationship("Query", back_populates="job")
+
 
 class Skill(Base):
     __tablename__ = "skills"
@@ -32,6 +33,7 @@ class Skill(Base):
     job_id = Column(Integer, ForeignKey("jobs.id"))
 
     job = relationship("Job", back_populates="skills")
+
 
 class Detail(Base):
     __tablename__ = "details"
@@ -56,3 +58,15 @@ class Query(Base):
     job_id = Column(Integer, ForeignKey("jobs.id"))
 
     job = relationship("Job", back_populates="queries")
+
+
+class JobRawData(Base):
+    __tablename__ = "raw_data"
+
+    job_id = Column(Integer, ForeignKey("jobs.id"), primary_key=True)
+    raw_data = Column(Text)
+
+# class QueryCounter(Base):
+#     __tablename__ = "query_counter"
+#     query_id = Column(Integer, ForeignKey("queries.id"), primary_key=True)
+#     count = Column(Integer)

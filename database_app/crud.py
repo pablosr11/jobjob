@@ -53,3 +53,10 @@ def create_job_queries(db: Session, query: models.Query):
     db.commit()
     db.refresh(query)
     return query
+
+
+def create_job_rawdata(db: Session, rawdata: models.JobRawData):
+    db.add(rawdata)
+    db.commit()
+    db.refresh(rawdata)
+    return rawdata
