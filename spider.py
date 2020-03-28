@@ -23,12 +23,12 @@ URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 5  # how many jobs do we parse concurrently
+CRAWLING_BATCH = 8  # how many jobs do we parse concurrently
 NUMBER_OF_BATCHES = 2  # how many batches of job do we go for?
 NUMBER_OF_WORKERS = CRAWLING_BATCH
-SLEEP_BETWEEN_BATCHES = 15
+SLEEP_BETWEEN_BATCHES = 10
 
-QUERY = "junior"
+QUERY = "software engineer"
 CITY = "london"
 BASE_URL = f"https://stackoverflow.com/jobs/feed"
 
@@ -65,6 +65,8 @@ class SOSpider(BaseSpider):
         self.db = SessionLocal()
 
     # is it too slow to check for links before scraping?
+    # because of the filtering, new queries wont include jobs that already
+    # got caught by other queries
     def extract_urls_feed(self):
         """Add to_crawl links to the spider if we dont have them in the db already"""
         self.to_crawl = [
@@ -394,8 +396,10 @@ if __name__ == "__main__":
 
     d = Downloader()
 
-    start_url = f"{BASE_URL}?q={QUERY}&l={CITY}"
-    url_domain = parse.urlparse(start_url).netloc
+    _query = "+".join(QUERY.split(" "))
+
+    start_url = f"{BASE_URL}?q={_query}&l={CITY}"
+    url_domain = parse.urlparse(start_url).netloc  
 
     ### get main site (no proxy used here)
     # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
@@ -404,7 +408,12 @@ if __name__ == "__main__":
     ## create instance of spider for that site with the contents
     _spider = MAPPING_SPIDER[url_domain](feed_tree, QUERY)
 
+
     ## get all links to jobs - store them in downloader? in spider?
+    # this will filter out links that we already looked at, but then 
+    # we wont be able to track what jobs were per query. We should get 
+    # firjst all links, store query:job_id in database, then filter out
+    # the links at already exist, and then start scraping
     _spider.extract_urls_feed()
 
     ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header

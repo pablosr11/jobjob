@@ -14,7 +14,7 @@
 docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12
 
 # get in
-docker exec -it db-pg -U postgres
+docker exec -it db-pg psql -U postgres
 
 ================================================
 ================================================

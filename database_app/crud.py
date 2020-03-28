@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 from database_app import models
-
+from sqlalchemy import func
 
 # get jobs by company, salary(between min and max), location
+
 
 def get_job(db: Session, job_id: int):
     return db.query(models.Job).filter(models.Job.job_id == job_id).first()
@@ -62,3 +63,26 @@ def create_job_rawdata(db: Session, rawdata: models.JobRawData):
     db.commit()
     db.refresh(rawdata)
     return rawdata
+
+
+def get_skills_by_query(db: Session, query: str, limit: int = 10):
+    return (
+        db.query(models.Skill.title)
+        .join(models.Query, models.Query.job_id == models.Skill.job_id)
+        .filter(models.Query.query == query)
+        .group_by(models.Skill.title)
+        .order_by(func.count(models.Skill.title).desc())
+        .limit(limit)
+        .all()
+    )
+
+
+#     select distinct(ss.title) from queries as qq inner join skills as ss on qq.job_id=ss.job_id where qq.query = 'go';
+#     select title, count(title) from skills group by title order by count(title) desc limit 15;
+
+# top X skills for X query:
+# select ss.title, count(ss.title)
+# from queries as qq inner join skills as ss on qq.job_id=ss.job_id
+# where qq.query = 'go'
+# group by ss.title
+# order by count(ss.title) desc limit 10;

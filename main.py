@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from starlette.responses import RedirectResponse
@@ -31,24 +31,33 @@ async def homepage():
 
 
 @app.post("/lookup")
-async def trigger_spider(query: str = Form("blue")):
+async def trigger_spider(query: str = Form("junior")):
     print(f"Triggering with query {query}")
 
+    # looks if query in queries table
+    # - if yes,
+    # return skills of the jobs listed for that query
+    # - if not
+    # return skills for the jobs which text contains the query
+
     url = app.url_path_for("triggered")
-    response = RedirectResponse(url=url)
+    response = RedirectResponse(url=url, status_code=302, headers={"metadata": query})
     return response
 
 
-@app.post("/landed", response_class=HTMLResponse)
-async def triggered():
-    return """ 
+@app.get("/landed", response_class=HTMLResponse)
+async def triggered(request:Request):
+    session = database.SessionLocal()
+    # HOW TO GET QUERY HERE
+    skills = crud.get_skills_by_query(db=session, query="devops")
+    return f""" 
     <html>
         <head>
             <title>jobjob</title>
         </head>
         <body>
             <h1>looking for ur prize innit</h1>
-            
+            {[x[0] for x in skills]}
             <form action="/" method="get">
                 <input type="submit" value="SEND ME BACK">
             </form> 
