@@ -1,12 +1,16 @@
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, BackgroundTasks
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.testclient import TestClient
-from starlette.responses import RedirectResponse
-
 
 from database_app import crud, database
+import spider
 
 app = FastAPI()
+
+
+def append_query(func_name: str, query: str):
+    """Returns a full url for a given function with a query parameter """
+    return app.url_path_for(func_name) + f"?q={query}"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -30,26 +34,40 @@ async def homepage():
     """
 
 
+async def sanitise(query: str):
+    return "+".join(query.split(" "))
+
+
 @app.post("/lookup")
-async def trigger_spider(query: str = Form("junior")):
+async def trigger_spider(
+    background_tasks: BackgroundTasks, query: str = Form("junior")
+):
     print(f"Triggering with query {query}")
 
-    # looks if query in queries table
-    # - if yes,
-    # return skills of the jobs listed for that query
-    # - if not
-    # return skills for the jobs which text contains the query
+    query = await sanitise(query)
 
-    url = app.url_path_for("triggered")
-    response = RedirectResponse(url=url, status_code=302, headers={"metadata": query})
+    # do we have to create a session everytime we access the db?
+    db = database.SessionLocal()
+
+    if not crud.get_query(db, query):
+        background_tasks.add_task(spider.trigger_spider, query)
+
+    # add one to query count table here
+
+    url = append_query("triggered", query)
+    response = RedirectResponse(url=url, status_code=303)
     return response
 
 
 @app.get("/landed", response_class=HTMLResponse)
-async def triggered(request:Request):
+async def triggered(q: str):
     session = database.SessionLocal()
-    # HOW TO GET QUERY HERE
-    skills = crud.get_skills_by_query(db=session, query="devops")
+
+    # do we get skills by query, or skills of jobs whose text contains the query? how expensive/slow is that?
+
+    skills = crud.get_skills_by_query(db=session, query=q)
+    if not skills:
+        skills = [["No skills found for that jobs"]]
     return f""" 
     <html>
         <head>
@@ -57,7 +75,9 @@ async def triggered(request:Request):
         </head>
         <body>
             <h1>looking for ur prize innit</h1>
-            {[x[0] for x in skills]}
+            <ul>
+            {[f"<li>{x[0]}</li>" for x in skills]}
+            </ul>
             <form action="/" method="get">
                 <input type="submit" value="SEND ME BACK">
             </form> 
@@ -95,3 +115,10 @@ def test_homepage():
 #     response = test_client.post(url, json={"query":"testing_redirect"})
 #     assert response.status_code == 307
 #     assert "looking for ur prize innit" in response.text
+
+
+if __name__ == "__main__":
+
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

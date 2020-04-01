@@ -57,6 +57,8 @@ class Query(Base):
     query = Column(String, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"))
 
+    # store query-link or query-jobid but have to add an identifier to the job_id to differentiate it from different sites
+
     job = relationship("Job", back_populates="queries")
 
 

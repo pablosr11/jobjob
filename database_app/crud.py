@@ -47,6 +47,9 @@ def create_job_detail(db: Session, detail: models.Detail):
     return detail
 
 
+def get_query(db: Session, query: str):
+    return db.query(models.Query).filter(models.Query.query == query).first()
+
 def get_queries(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Query).offset(skip).limit(limit).all()
 
@@ -75,14 +78,3 @@ def get_skills_by_query(db: Session, query: str, limit: int = 10):
         .limit(limit)
         .all()
     )
-
-
-#     select distinct(ss.title) from queries as qq inner join skills as ss on qq.job_id=ss.job_id where qq.query = 'go';
-#     select title, count(title) from skills group by title order by count(title) desc limit 15;
-
-# top X skills for X query:
-# select ss.title, count(ss.title)
-# from queries as qq inner join skills as ss on qq.job_id=ss.job_id
-# where qq.query = 'go'
-# group by ss.title
-# order by count(ss.title) desc limit 10;

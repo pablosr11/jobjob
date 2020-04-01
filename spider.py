@@ -3,7 +3,7 @@ from urllib import request, error, parse
 from http.client import HTTPResponse
 from random import random
 from time import sleep
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Any
 from datetime import datetime
 from abc import abstractmethod, ABC
 from unicodedata import normalize
@@ -18,17 +18,17 @@ from database_app.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 
-GET_TIMEOUT = 20  # how long do we wait per request? the read timeout comes from here
+GET_TIMEOUT = 10  # how long do we wait per request? the read timeout comes from here
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
 PROXY_CATEGORY = "elite"  # what proxies do we want?
 USER_AGENTS_MAX = 50  # how many user agents do we store?
-CRAWLING_BATCH = 8  # how many jobs do we parse concurrently
-NUMBER_OF_BATCHES = 2  # how many batches of job do we go for?
+CRAWLING_BATCH = 3  # how many jobs do we parse concurrently
+NUMBER_OF_BATCHES = 1  # how many batches of job do we go for?
 NUMBER_OF_WORKERS = CRAWLING_BATCH
-SLEEP_BETWEEN_BATCHES = 10
+SLEEP_BETWEEN_BATCHES = 0
 
-QUERY = "software engineer"
+QUERY = "python"
 CITY = "london"
 BASE_URL = f"https://stackoverflow.com/jobs/feed"
 
@@ -52,17 +52,23 @@ class BaseSpider(ABC):
         ...
 
 
+# INHERIT THE INNIT - only with start_url, spiders wont had innit
 class SOSpider(BaseSpider):
     def __init__(
-        self, data: Union[feedparser.FeedParserDict, HTTPResponse], query: str
+        self, data: Any, query: str,
     ):
         # main site to scrape links from
         self.content = data
-        self.query = query
-        # links to crawl
-        self.to_crawl = None
 
+        # no reason to store query in spider? currently its used to persist the query in database
+        self.query = query
+
+        self.downloader = Downloader()
+
+        # self.start_url = start_url
         self.db = SessionLocal()
+
+        self.extract_urls_feed()
 
     # is it too slow to check for links before scraping?
     # because of the filtering, new queries wont include jobs that already
@@ -73,7 +79,7 @@ class SOSpider(BaseSpider):
             self.remove_parameters_url(entry["link"])
             for entry in self.content["entries"]
             if not crud.get_job_by_link(
-                self.db, self.remove_parameters_url(entry["link"])
+                self.db, parse.urlparse(self.remove_parameters_url(entry["link"])).path
             )
         ]
 
@@ -114,6 +120,7 @@ class SOSpider(BaseSpider):
         db_job = crud.get_job(self.db, job.job_id)
         if db_job:
             print(f"== Job - {db_job.title} already exists")
+            # add job to query here?
             return db_job, db_job.skills
 
         new_job = crud.create_job(self.db, job)
@@ -192,7 +199,7 @@ class SOSpider(BaseSpider):
 
     @staticmethod
     def get_link(data: str):
-        return data.xpath("//head/link[@rel='canonical']/@href")[0]
+        return parse.urlparse(data.xpath("//head/link[@rel='canonical']/@href")[0]).path
 
     @staticmethod
     def get_company(data: str):
@@ -273,10 +280,6 @@ class Downloader:
         self.headers_pool = self.get_headers_pool()
         self.proxy_pool = self.get_proxy_pool()
 
-        # header and proxy are set on setup
-        self.header = None
-        self.proxy = None
-
         self.timeout = timeout
         self.setup_downloader()
         print(
@@ -284,10 +287,25 @@ class Downloader:
         )
 
     @classmethod
+    def get_headers_pool(cls):
+        response = cls.get_request_fixed_headers(URL_HEADERS)
+        user_agents = cls.parse_headers_site(response.read())
+        return cycle(user_agents)
+
+    @staticmethod
+    def get_request_fixed_headers(url: str) -> HTTPResponse:
+        r = request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        return request.urlopen(r, timeout=GET_TIMEOUT)
+
+    @staticmethod
+    def parse_headers_site(html: str, max_ua=USER_AGENTS_MAX) -> list:
+        parser = fromstring(html)
+        return [ua for ua in parser.xpath("//tr/td/p/a/text()")][:max_ua]
+
+    @classmethod
     def get_proxy_pool(cls):
         response = cls.get_request_fixed_headers(URL_PROXY)
-        response_content = response.read()
-        proxies = cls.parse_proxy_site(response_content)
+        proxies = cls.parse_proxy_site(response.read())
         return cycle(proxies)
 
     @classmethod
@@ -311,18 +329,6 @@ class Downloader:
             for element in parser.xpath("//tbody/tr")
             if element.xpath(f".//td[5][contains(text(),{category})]")
         }
-
-    @classmethod
-    def get_headers_pool(cls):
-        response = cls.get_request_fixed_headers(URL_HEADERS)
-        response_content = response.read()
-        user_agents = cls.parse_headers_site(response_content)
-        return cycle(user_agents)
-
-    @staticmethod
-    def parse_headers_site(html: str, max_ua=USER_AGENTS_MAX) -> list:
-        parser = fromstring(html)
-        return [ua for ua in parser.xpath("//tr/td/p/a/text()")][:max_ua]
 
     def get_headers(self):
         user_agent = next(self.headers_pool)
@@ -368,11 +374,6 @@ class Downloader:
         r = request.Request(url, headers=self.header)
         return request.urlopen(r, timeout=GET_TIMEOUT)
 
-    @staticmethod
-    def get_request_fixed_headers(url: str) -> HTTPResponse:
-        r = request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        return request.urlopen(r, timeout=GET_TIMEOUT)
-
     def concurrent_request(self, urls: list, spider: SOSpider):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future_to_url = {
@@ -392,34 +393,73 @@ class Downloader:
 
 MAPPING_SPIDER = {"stackoverflow.com": SOSpider}
 
+
+def build_url(
+    base: str,
+    query: str,
+    location: str = None,
+    salary: int = None,
+    remote: bool = False,
+):
+
+    start_url = f"{base}?q={sanitise_spaces(query)}"
+
+    if location:
+        start_url += f"&l={sanitise_spaces(location)}&d=20&u=Miles"
+
+    if salary:
+        start_url += f"&s={salary}&c=GBP"
+
+    if remote:
+        start_url += f"&r=true"
+
+    return start_url
+
+
+def sanitise_spaces(query: str):
+    return "+".join(query.split(" "))
+
+
+def get_host(url: str):
+    return parse.urlparse(url).netloc
+
+
+def trigger_spider(query: str):
+
+
+    query = sanitise_spaces(query)
+    start_url = build_url(base=BASE_URL, query=query)
+    host = get_host(start_url)
+
+    try:
+        feed_tree = feedparser.parse(start_url)
+        # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
+    except RuntimeError as exc:
+        print("Error while parsing the url - Try standard request")
+        raise exc
+
+    spider = MAPPING_SPIDER[host](feed_tree, query)
+
+    crawl(spider)
+
+
+def crawl(spider: BaseSpider):
+
+    batches = list(spider.crawling_batches(spider.to_crawl))
+
+    for batch in batches[:NUMBER_OF_BATCHES]:
+        print(f"\n-- Starting {batch}\n")
+        spider.downloader.concurrent_request(batch, spider)
+        sleep(random() * SLEEP_BETWEEN_BATCHES)
+
+
 if __name__ == "__main__":
 
-    d = Downloader()
-
-    _query = "+".join(QUERY.split(" "))
-
-    start_url = f"{BASE_URL}?q={_query}&l={CITY}"
-    url_domain = parse.urlparse(start_url).netloc  
-
-    ### get main site (no proxy used here)
-    # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
-    feed_tree = feedparser.parse(start_url)
-
-    ## create instance of spider for that site with the contents
-    _spider = MAPPING_SPIDER[url_domain](feed_tree, QUERY)
 
 
-    ## get all links to jobs - store them in downloader? in spider?
-    # this will filter out links that we already looked at, but then 
-    # we wont be able to track what jobs were per query. We should get 
-    # firjst all links, store query:job_id in database, then filter out
-    # the links at already exist, and then start scraping
-    _spider.extract_urls_feed()
 
-    ## scrape all of them in batches(5-15), after every batch, wait X s and change proxy/header
-    # too many things happening here to create iterator
-    for batch in list(_spider.crawling_batches(_spider.to_crawl))[:NUMBER_OF_BATCHES]:
-        print(f"\n-- Starting {batch}\n")
-        d.concurrent_request(batch, _spider)
-        print("\n-- batch ended\n")
-        sleep(random() * SLEEP_BETWEEN_BATCHES)
+    # We should get firjst all links, store query:job_id in database, then filter out
+    # # the links at already exist, and then start scraping
+    # _spider.extract_urls_feed()
+
+    trigger_spider('machine learning')

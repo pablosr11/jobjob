@@ -1,9 +1,16 @@
-- run scraping from api server + reorganise (https://fastapi.tiangolo.com/tutorial/query-params-str-validations/)
-- add table to count queries
+
+
+- run scraping from api server + refactor
+- add kafka to queue until scraping is done
 - SMALL FT and couple UT
 - docker images
 
-# add indeed, linkedin, google for jobs, glassdoor, dice
+# add 
+indeed - https://rss.indeed.com/rss?q=python feedparser.py 3933 aprox
+linkedin
+google for jobs
+glassdoor
+dice
 
 
 
@@ -19,5 +26,5 @@ docker exec -it db-pg psql -U postgres
 ================================================
 ================================================
 ===== API 
-# Run server on 127.0.0.1:800
+# Run server on 127.0.0.1:8000
 uvicorn main:app --reload
