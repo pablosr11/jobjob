@@ -2,8 +2,8 @@ from fastapi import FastAPI, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.testclient import TestClient
 
+import requests
 from database_app import crud, database
-import spider
 
 app = FastAPI()
 
@@ -34,23 +34,15 @@ async def homepage():
     """
 
 
-async def sanitise(query: str):
-    return "+".join(query.split(" "))
-
-
 @app.post("/lookup")
-async def trigger_spider(
-    background_tasks: BackgroundTasks, query: str = Form("junior")
-):
+async def trigger_spider(query: str = Form("junior")):
     print(f"Triggering with query {query}")
-
-    query = await sanitise(query)
 
     # do we have to create a session everytime we access the db?
     db = database.SessionLocal()
 
     if not crud.get_query(db, query):
-        background_tasks.add_task(spider.trigger_spider, query)
+        requests.get(f"http://0.0.0.0:8001/trigger?q={query}")
 
     # add one to query count table here
 
@@ -94,7 +86,7 @@ async def get_job(job_id: int):
 
 
 @app.get("/jobs")
-async def get_jobs(limit: int = None):
+async def get_jobs(limit: int = 5):
     session = database.SessionLocal()
     job = crud.get_jobs(session, limit=limit)
     return {"job": job}

@@ -426,7 +426,6 @@ def get_host(url: str):
 
 def trigger_spider(query: str):
 
-
     query = sanitise_spaces(query)
     start_url = build_url(base=BASE_URL, query=query)
     host = get_host(start_url)
@@ -455,11 +454,8 @@ def crawl(spider: BaseSpider):
 
 if __name__ == "__main__":
 
-
-
-
     # We should get firjst all links, store query:job_id in database, then filter out
     # # the links at already exist, and then start scraping
     # _spider.extract_urls_feed()
 
-    trigger_spider('machine learning')
+    trigger_spider("machine learning")

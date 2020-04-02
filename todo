@@ -1,18 +1,8 @@
 
 
-- run scraping from api server + refactor
-- add kafka to queue until scraping is done
-- SMALL FT and couple UT
-- docker images
-
-# add 
-indeed - https://rss.indeed.com/rss?q=python feedparser.py 3933 aprox
-linkedin
-google for jobs
-glassdoor
-dice
-
-
+- refactor spider + remove query from jobs etc? look for text that include the query?
+- basic docker-compose
+- tests + ci/cd pipeline
 
 ================================================
 ================================================
@@ -27,4 +17,15 @@ docker exec -it db-pg psql -U postgres
 ================================================
 ===== API 
 # Run server on 127.0.0.1:8000
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
+================================================
+================================================
+===== SPIDER API
+# Run server on 127.0.0.1:8001
+uvicorn spider_api:app --host 0.0.0.0 --port 8001 --reload
+
+# add 
+indeed - https://rss.indeed.com/rss?q=python feedparser.py 3933 aprox
+linkedin, google for jobs, glassdoor, dice
