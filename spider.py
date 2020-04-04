@@ -52,16 +52,13 @@ class BaseSpider(ABC):
         ...
 
 
-# INHERIT THE INNIT - only with start_url, spiders wont had innit
 class SOSpider(BaseSpider):
     def __init__(
-        self, data: Any, query: str,
+        self, data: Any,
     ):
         # main site to scrape links from
         self.content = data
 
-        # no reason to store query in spider? currently its used to persist the query in database
-        self.query = query
 
         self.downloader = Downloader()
 
@@ -83,10 +80,6 @@ class SOSpider(BaseSpider):
             )
         ]
 
-    def persist_query(self, query: str, job_id: int):
-        return crud.create_job_queries(
-            self.db, models.Query(query=query, job_id=job_id)
-        )
 
     def persist_details(self, details: Dict, job_id: int):
         return crud.create_job_detail(
@@ -126,12 +119,11 @@ class SOSpider(BaseSpider):
         new_job = crud.create_job(self.db, job)
         new_skills = self.persist_skills(skills, new_job.id)
         new_details = self.persist_details(details, new_job.id)
-        new_query = self.persist_query(self.query, new_job.id)
         new_raw_data = self.persist_rawdata(raw_data, new_job.id)
 
         print(f"== Added - {new_job.title} with {len(new_skills)} skills")
 
-        return new_job, new_skills, new_details, new_query, new_raw_data
+        return new_job, new_skills, new_details, new_raw_data
 
     def add_job(self, data: bytes):
         tree = fromstring(data)
@@ -402,7 +394,10 @@ def build_url(
     remote: bool = False,
 ):
 
-    start_url = f"{base}?q={sanitise_spaces(query)}"
+    start_url = base
+
+    if query:
+        start_url += f"?q={sanitise_spaces(query)}"
 
     if location:
         start_url += f"&l={sanitise_spaces(location)}&d=20&u=Miles"
@@ -429,6 +424,7 @@ def trigger_spider(query: str):
     query = sanitise_spaces(query)
     start_url = build_url(base=BASE_URL, query=query)
     host = get_host(start_url)
+    print(f"Start url : {start_url}")
 
     try:
         feed_tree = feedparser.parse(start_url)
@@ -437,7 +433,7 @@ def trigger_spider(query: str):
         print("Error while parsing the url - Try standard request")
         raise exc
 
-    spider = MAPPING_SPIDER[host](feed_tree, query)
+    spider = MAPPING_SPIDER[host](feed_tree)
 
     crawl(spider)
 

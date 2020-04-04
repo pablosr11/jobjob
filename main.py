@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.testclient import TestClient
 
 import requests
-from database_app import crud, database
+from database_app import crud, database, models
 
 app = FastAPI()
 
@@ -44,7 +44,8 @@ async def trigger_spider(query: str = Form("junior")):
     if not crud.get_query(db, query):
         requests.get(f"http://0.0.0.0:8001/trigger?q={query}")
 
-    # add one to query count table here
+    # add query to db here
+    crud.create_query(db, models.Query(query=query)) 
 
     url = append_query("triggered", query)
     response = RedirectResponse(url=url, status_code=303)
@@ -55,11 +56,10 @@ async def trigger_spider(query: str = Form("junior")):
 async def triggered(q: str):
     session = database.SessionLocal()
 
-    # do we get skills by query, or skills of jobs whose text contains the query? how expensive/slow is that?
+    skills = crud.get_skills_by_query_from_contents(db=session, query=q)
 
-    skills = crud.get_skills_by_query(db=session, query=q)
     if not skills:
-        skills = [["No skills found for that jobs"]]
+        skills = [[f"No skills found for {q}"]]
     return f""" 
     <html>
         <head>

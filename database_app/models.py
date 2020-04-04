@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Text
+from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 
 from database_app.database import Base
@@ -23,7 +23,6 @@ class Job(Base):
     raw_data = relationship("JobRawData", backref="jobs", uselist=False)
     skills = relationship("Skill", back_populates="job")
     details = relationship("Detail", back_populates="job")
-    queries = relationship("Query", back_populates="job")
 
 
 class Skill(Base):
@@ -55,11 +54,9 @@ class Query(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     query = Column(String, index=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"))
-
-    # store query-link or query-jobid but have to add an identifier to the job_id to differentiate it from different sites
-
-    job = relationship("Job", back_populates="queries")
+    location = Column(String)
+    salary = Column(String)
+    remote = Column(Boolean)
 
 
 class JobRawData(Base):
@@ -67,8 +64,3 @@ class JobRawData(Base):
 
     job_id = Column(Integer, ForeignKey("jobs.id"), primary_key=True)
     raw_data = Column(Text)
-
-# class QueryCounter(Base):
-#     __tablename__ = "query_counter"
-#     query_id = Column(Integer, ForeignKey("queries.id"), primary_key=True)
-#     count = Column(Integer)

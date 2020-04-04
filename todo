@@ -1,6 +1,7 @@
 
-
-- refactor spider + remove query from jobs etc? look for text that include the query?
+- add location, salary for query
+- add schema
+- refactor spider (trigger query in class or smth?)
 - basic docker-compose
 - tests + ci/cd pipeline
 
@@ -29,3 +30,13 @@ uvicorn spider_api:app --host 0.0.0.0 --port 8001 --reload
 # add 
 indeed - https://rss.indeed.com/rss?q=python feedparser.py 3933 aprox
 linkedin, google for jobs, glassdoor, dice
+
+
+
+====================================================================================
+====================================================================================
+====================================================================================
+====================================================================================
+Future:
+- add cache/table of skills by query to avoid hitting the DB every new search (refresh every week?)
+- weekly run of the spider for all jobs?
