@@ -7,17 +7,17 @@ from database_app import crud, database, models
 
 app = FastAPI()
 
-# QUERY_MAPPING = {"query": f"?q={query}"}
+NAME_OF_SPIDER_CONTAINER = "spider"
 
 
 def append_query(func_name: str, query: str):
     """Returns a full url for a given function with a query parameter """
-
     return app.url_path_for(func_name) + f"?q={query}"
 
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
+    print("=====API - HOMEPAGE")
     return """ 
     <html>
         <head>
@@ -30,10 +30,6 @@ async def homepage():
             <form action="/lookup" method="post">
                 <input type="text" name="query" placeholder="software engineer">
                 <br><br>
-                <input type="radio" name="location" value="london"> London
-                <br>
-                <input type="radio" name="location" value="" checked> Everywhere
-                <br><br>
                 <input type="submit" value="find ma money">
             </form> 
         </body>
@@ -42,28 +38,31 @@ async def homepage():
 
 
 @app.post("/lookup")
-async def trigger_spider(query: str = Form(""), location: str = Form("")):
-    print(f"Triggering with query {query}")
+async def trigger_spider(query: str = Form("")):
+    print(f"=====API - Triggering with query: {query}")
 
     # do we have to create a session everytime we access the db?
     db = database.SessionLocal()
 
     if not crud.get_query(db, query):
-        requests.get(f"http://0.0.0.0:8001/trigger?q={query}&l={location}")
+        print("=====API - request to spider_api")
+        requests.get(f"http://{NAME_OF_SPIDER_CONTAINER}:8001/trigger?q={query}")
 
     # add query to db here
-    crud.create_query(db, models.Query(query=query, location=location))
+    crud.create_query(db, models.Query(query=query))
 
-    print(f"query: {query}, location: {location}")
     url = append_query("triggered", query)
     response = RedirectResponse(url=url, status_code=303)
+    
     return response
 
 
 @app.get("/landed", response_class=HTMLResponse)
 async def triggered(q: str):
-    session = database.SessionLocal()
 
+    print("=====API - landing after triggering")
+
+    session = database.SessionLocal()
     skills = crud.get_skills_by_query_from_contents(db=session, query=q)
 
     if not skills:

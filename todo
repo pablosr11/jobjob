@@ -1,5 +1,22 @@
-- basic docker-compose
 - tests + ci/cd pipeline
+- basic react fonrtend
+- proper logging to debug containers
+- change passwords, add best practices to store them etc, Dockerfiles (environment, improvement)
+
+- master/slave Databases
+- add queues for triggering spiders and wait for results redis/kafka- celery
+- kubernetes
+- aws devops guide on reddit
+- cache to avoid hitting DB everytime
+- continuous monitoring/logging of services (prometheus?)
+- stress tests
+- run spider periodically
+- best practices / more architecture
+- tools: elasticsearch?
+
+
+#=====================
+docker-compose up --build
 
 ================================================
 ================================================
@@ -13,20 +30,15 @@ docker exec -it db-pg psql -U postgres
 ================================================
 ================================================
 ===== API 
-# Run server on 127.0.0.1:8000
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# Run server on 0.0.0.0:8000
+uvicorn webapp.main:app --host 0.0.0.0 --port 8000 --reload
 
 
 ================================================
 ================================================
 ===== SPIDER API
-# Run server on 127.0.0.1:8001
-uvicorn spider_api:app --host 0.0.0.0 --port 8001 --reload
-
-# add 
-indeed - https://rss.indeed.com/rss?q=python feedparser.py 3933 aprox
-linkedin, google for jobs, glassdoor, dice
-
+# Run server on 0.0.0.0:8001
+uvicorn spider_app.spider_api:app --host 0.0.0.0 --port 8001 --reload
 
 
 ====================================================================================
@@ -37,3 +49,6 @@ Future:
 - add cache/table of skills by query to avoid hitting the DB every new search (refresh every week?)
 - weekly run of the spider for all jobs?
 - Refactor spider by responsibilities
+- Get currency for jobs in SO as we cant tell now by salaries
+- add indeed - https://rss.indeed.com/rss?q=python error-feedparser.py 3933 aprox,
+    linkedin, google for jobs, glassdoor, dice

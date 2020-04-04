@@ -49,7 +49,6 @@ def create_job_detail(db: Session, detail: models.Detail):
 
 
 def get_query(db: Session, query: str):
-    print(db.query(models.Query).filter(models.Query.query == query).first())
     return db.query(models.Query).filter(models.Query.query == query).first()
 
 
@@ -65,7 +64,6 @@ def create_job_rawdata(db: Session, rawdata: models.JobRawData):
 
 
 def create_query(db: Session, query: models.Query):
-    print(f"Inside {query.query} and {query.location}")
     db.add(query)
     db.commit()
     db.refresh(query)

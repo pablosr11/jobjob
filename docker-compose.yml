@@ -1,0 +1,49 @@
+version: "3.7"
+services:
+
+  spider:
+    build: ./spider_app 
+    ports:
+      - "8001:8001"
+    expose:
+      - 8001
+    restart: always
+    depends_on:
+      - db
+    networks:
+      - backend
+    volumes:
+      - $HOME/repos/z-pablo/jobjob:/home/ubuntu/jobjob
+
+  webapp:
+    build: ./webapp 
+    ports:
+      - "8000:8000"
+    expose:
+      - 8000
+    restart: always
+    depends_on:
+      - db
+    networks:
+      - backend
+    volumes:
+      - $HOME/repos/z-pablo/jobjob:/home/ubuntu/jobjob
+
+  db:
+    image: postgres:12
+    ports:
+      - "5432:5432"
+    volumes:
+      - $HOME/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data
+    environment:
+        POSTGRES_PASSWORD: postgres
+    restart: always
+    networks:
+      - backend
+
+networks:
+  backend:
+
+# frontend:
+# queue:
+# monitoring:

@@ -70,6 +70,8 @@ class SOSpider(BaseSpider):
 
         self.extract_urls_feed()
 
+        ## add an attribute to keep track of work done
+
     # is it too slow to check for links before scraping?
     # because of the filtering, new queries wont include jobs that already
     # got caught by other queries
@@ -420,12 +422,13 @@ def get_host(url: str):
     return parse.urlparse(url).netloc
 
 
-def trigger_spider(query: str, location: str = None):
+def trigger_spider(query: str):
 
     query = sanitise_spaces(query)
-    start_url = build_url(base=BASE_URL, query=query, location=location)
+    start_url = build_url(base=BASE_URL, query=query)
     host = get_host(start_url)
-    print(f"Start url : {start_url}")
+
+    print(f"=====SPIDER - Start URL {start_url}")
 
     try:
         feed_tree = feedparser.parse(start_url)
@@ -437,6 +440,8 @@ def trigger_spider(query: str, location: str = None):
     spider = MAPPING_SPIDER[host](feed_tree)
 
     crawl(spider)
+
+    print(f"\n\nFinished --------\n")
 
 
 def crawl(spider: BaseSpider):

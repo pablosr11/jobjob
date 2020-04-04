@@ -4,7 +4,8 @@ from sqlalchemy.orm import sessionmaker
 
 db_user = "postgres"
 db_pass = "postgres"
-db_server = "localhost"
+db_server = "db"
+# db_server = "localhost"
 db_name = "postgres"
 SQLALCHEMY_DATABASE_URL = f"postgres://{db_user}:{db_pass}@{db_server}/{db_name}"
 
