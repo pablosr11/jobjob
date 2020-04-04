@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from database_app import models
 from sqlalchemy import func, or_
 
+# most look up jobs
+# highest paid jobs
+# same for skills 
 
 def get_job(db: Session, job_id: int):
     return db.query(models.Job).filter(models.Job.job_id == job_id).first()
@@ -62,6 +65,7 @@ def create_job_rawdata(db: Session, rawdata: models.JobRawData):
 
 
 def create_query(db: Session, query: models.Query):
+    print(f"Inside {query.query} and {query.location}")
     db.add(query)
     db.commit()
     db.refresh(query)
@@ -91,7 +95,6 @@ def create_query(db: Session, query: models.Query):
 
 # get skills from jobs by looking at jobs that contain *query* in title or text
 def get_skills_by_query_from_contents(db: Session, query: str, limit: int = 10):
-    print(query)
     return (
         db.query(models.Skill.title)
         .join(models.Job, models.Job.id == models.Skill.job_id)

@@ -1,5 +1,5 @@
 
-- add location, salary for query
+- add salary for query
 - add schema
 - refactor spider (trigger query in class or smth?)
 - basic docker-compose

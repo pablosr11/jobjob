@@ -7,6 +7,8 @@ from database_app import crud, database, models
 
 app = FastAPI()
 
+# QUERY_MAPPING = {"query": f"?q={query}"}
+
 
 def append_query(func_name: str, query: str):
     """Returns a full url for a given function with a query parameter """
@@ -27,6 +29,10 @@ async def homepage():
             <form action="/lookup" method="post">
                 <input type="text" name="query" placeholder="software engineer">
                 <br><br>
+                <input type="radio" name="location" value="london"> London
+                <br>
+                <input type="radio" name="location" value="" checked> Everywhere
+                <br><br>
                 <input type="submit" value="find ma money">
             </form> 
         </body>
@@ -35,7 +41,7 @@ async def homepage():
 
 
 @app.post("/lookup")
-async def trigger_spider(query: str = Form("junior")):
+async def trigger_spider(query: str = Form(""), location: str = Form("")):
     print(f"Triggering with query {query}")
 
     # do we have to create a session everytime we access the db?
@@ -45,8 +51,9 @@ async def trigger_spider(query: str = Form("junior")):
         requests.get(f"http://0.0.0.0:8001/trigger?q={query}")
 
     # add query to db here
-    crud.create_query(db, models.Query(query=query)) 
+    crud.create_query(db, models.Query(query=query, location=location))
 
+    print(f"query: {query}, location: {location}")
     url = append_query("triggered", query)
     response = RedirectResponse(url=url, status_code=303)
     return response
