@@ -5,8 +5,8 @@ app = FastAPI()
 
 
 @app.get("/trigger")
-async def trigger(background_tasks: BackgroundTasks, q: str = None):
-    background_tasks.add_task(spider.trigger_spider, q)
+async def trigger(background_tasks: BackgroundTasks, q: str = None, l:str = None):
+    background_tasks.add_task(spider.trigger_spider, q, l)
     return {f"looking-{q}"}
 
 

@@ -1,7 +1,3 @@
-
-- add salary for query
-- add schema
-- refactor spider (trigger query in class or smth?)
 - basic docker-compose
 - tests + ci/cd pipeline
 
@@ -40,3 +36,4 @@ linkedin, google for jobs, glassdoor, dice
 Future:
 - add cache/table of skills by query to avoid hitting the DB every new search (refresh every week?)
 - weekly run of the spider for all jobs?
+- Refactor spider by responsibilities

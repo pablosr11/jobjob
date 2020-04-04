@@ -3,7 +3,7 @@ from urllib import request, error, parse
 from http.client import HTTPResponse
 from random import random
 from time import sleep
-from typing import Union, List, Dict, Any
+from typing import List, Dict, Any
 from datetime import datetime
 from abc import abstractmethod, ABC
 from unicodedata import normalize
@@ -56,9 +56,12 @@ class SOSpider(BaseSpider):
     def __init__(
         self, data: Any,
     ):
+        # We should get firjst all links, then filter out links existing in DB, then start scraping
+        # By using feedparser, we already have most of the data we need in the data we use to create the spider. a more
+        #   tradigional spider would get started by a URL and then either extract info on that one ot find links and iterate
+
         # main site to scrape links from
         self.content = data
-
 
         self.downloader = Downloader()
 
@@ -79,7 +82,6 @@ class SOSpider(BaseSpider):
                 self.db, parse.urlparse(self.remove_parameters_url(entry["link"])).path
             )
         ]
-
 
     def persist_details(self, details: Dict, job_id: int):
         return crud.create_job_detail(
@@ -113,7 +115,6 @@ class SOSpider(BaseSpider):
         db_job = crud.get_job(self.db, job.job_id)
         if db_job:
             print(f"== Job - {db_job.title} already exists")
-            # add job to query here?
             return db_job, db_job.skills
 
         new_job = crud.create_job(self.db, job)
@@ -419,10 +420,10 @@ def get_host(url: str):
     return parse.urlparse(url).netloc
 
 
-def trigger_spider(query: str):
+def trigger_spider(query: str, location: str = None):
 
     query = sanitise_spaces(query)
-    start_url = build_url(base=BASE_URL, query=query)
+    start_url = build_url(base=BASE_URL, query=query, location=location)
     host = get_host(start_url)
     print(f"Start url : {start_url}")
 
@@ -449,9 +450,4 @@ def crawl(spider: BaseSpider):
 
 
 if __name__ == "__main__":
-
-    # We should get firjst all links, store query:job_id in database, then filter out
-    # # the links at already exist, and then start scraping
-    # _spider.extract_urls_feed()
-
     trigger_spider("machine learning")

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, BackgroundTasks
+from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.testclient import TestClient
 
@@ -12,6 +12,7 @@ app = FastAPI()
 
 def append_query(func_name: str, query: str):
     """Returns a full url for a given function with a query parameter """
+
     return app.url_path_for(func_name) + f"?q={query}"
 
 
@@ -48,7 +49,7 @@ async def trigger_spider(query: str = Form(""), location: str = Form("")):
     db = database.SessionLocal()
 
     if not crud.get_query(db, query):
-        requests.get(f"http://0.0.0.0:8001/trigger?q={query}")
+        requests.get(f"http://0.0.0.0:8001/trigger?q={query}&l={location}")
 
     # add query to db here
     crud.create_query(db, models.Query(query=query, location=location))
