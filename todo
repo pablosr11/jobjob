@@ -1,4 +1,7 @@
 - tests + ci/cd pipeline
+    - test crud operations
+        https://medium.com/@mariusz.raczynski2/pytest-mock-how-to-mock-your-database-connection-5c84docker 
+        https://stackoverflow.com/questions/23325669/writting-py-test-for-sqlalchemy-app
 - basic react fonrtend
 - proper logging to debug containers
 - change passwords, add best practices to store them etc, 

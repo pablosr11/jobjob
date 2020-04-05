@@ -1,13 +1,20 @@
+from typing import Dict
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-db_user = "postgres"
-db_pass = "postgres"
-db_server = "db"
-# db_server = "localhost"
-db_name = "postgres"
-SQLALCHEMY_DATABASE_URL = f"postgres://{db_user}:{db_pass}@{db_server}/{db_name}"
+
+def create_db_str(config: Dict) -> str:
+    return f'postgres://{config.get("db_user")}:{config.get("db_pass")}@{config.get("db_server")}/{config.get("db_name")}'
+
+db_config = {
+    "db_user": "postgres",
+    "db_pass": "postgres",
+    "db_server": "db",
+    "db_name": "postgres"
+}
+SQLALCHEMY_DATABASE_URL = create_db_str(db_config)
 
 # create db engine
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
