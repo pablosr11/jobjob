@@ -96,27 +96,3 @@ async def get_jobs(limit: int = 5):
     session = database.SessionLocal()
     job = crud.get_jobs(session, limit=limit)
     return {"job": job}
-
-
-test_client = TestClient(app)
-
-
-def test_homepage():
-    url = app.url_path_for("homepage")
-    response = test_client.get(url)
-    assert response.status_code == 200
-    assert "welcome to jobjob" in response.text
-
-
-# def test_redirect_after_trigger():
-#     url = app.url_path_for("trigger_spider")
-#     response = test_client.post(url, json={"query":"testing_redirect"})
-#     assert response.status_code == 307
-#     assert "looking for ur prize innit" in response.text
-
-
-if __name__ == "__main__":
-
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

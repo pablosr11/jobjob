@@ -16,8 +16,6 @@ from lxml.html import HtmlElement, fromstring, tostring
 from database_app import crud, models
 from database_app.database import SessionLocal, engine
 
-models.Base.metadata.create_all(bind=engine)
-
 GET_TIMEOUT = 10  # how long do we wait per request? the read timeout comes from here
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
 URL_PROXY = "https://www.sslproxies.org/"
@@ -177,7 +175,7 @@ class SOSpider(BaseSpider):
                     0
                 ].strip(),
             )
-            json_data = json.loads(normalized)
+            json_data = loads(normalized)
         except ValueError as exc:
             json_data = {}
             print(f"""Error on {cls.get_link(data)}\n{exc}\n""")
@@ -370,11 +368,11 @@ class Downloader:
         return request.urlopen(r, timeout=GET_TIMEOUT)
 
     def concurrent_request(self, urls: list, spider: SOSpider):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor() as executor:
             future_to_url = {
                 executor.submit(self.get_site_content, url): url for url in urls
             }
-            for future in concurrent.futures.as_completed(future_to_url):
+            for future in as_completed(future_to_url):
                 url = future_to_url[future]
                 try:
                     data = future.result()
