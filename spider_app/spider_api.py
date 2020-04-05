@@ -1,5 +1,8 @@
-from fastapi import FastAPI, BackgroundTasks
-from spider_app import spider
+from fastapi import BackgroundTasks, FastAPI
+
+from database_app import models
+from database_app.database import engine
+from spider_app.spider import trigger_spider
 
 app = FastAPI()
 

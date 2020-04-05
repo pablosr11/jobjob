@@ -1,17 +1,17 @@
-from itertools import cycle
-from urllib import request, error, parse
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from http.client import HTTPResponse
+from itertools import cycle
+from json import loads
 from random import random
 from time import sleep
-from typing import List, Dict, Any
-from datetime import datetime
-from abc import abstractmethod, ABC
+from typing import Any, Dict, List
 from unicodedata import normalize
-import concurrent.futures
-import json
+from urllib import error, parse, request
 
-from lxml.html import tostring, fromstring, HtmlElement
 import feedparser
+from lxml.html import HtmlElement, fromstring, tostring
 
 from database_app import crud, models
 from database_app.database import SessionLocal, engine

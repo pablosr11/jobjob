@@ -1,7 +1,8 @@
 - tests + ci/cd pipeline
 - basic react fonrtend
 - proper logging to debug containers
-- change passwords, add best practices to store them etc, Dockerfiles (environment, improvement)
+- change passwords, add best practices to store them etc, 
+- Dockerfiles (environment, build images etc)
 
 - master/slave Databases
 - add queues for triggering spiders and wait for results redis/kafka- celery

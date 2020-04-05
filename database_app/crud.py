@@ -1,6 +1,7 @@
-from sqlalchemy.orm import Session
-from database_app import models
 from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
+
+from database_app import models
 
 # most look up jobs
 # highest paid jobs

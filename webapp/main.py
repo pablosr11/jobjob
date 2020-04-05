@@ -1,8 +1,7 @@
+import requests
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.testclient import TestClient
 
-import requests
 from database_app import crud, database, models
 
 app = FastAPI()
