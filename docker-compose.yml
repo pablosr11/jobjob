@@ -3,6 +3,7 @@ services:
 
   spider:
     build: ./spider_app 
+    container_name: spider
     ports:
       - "8001:8001"
     expose:
@@ -10,13 +11,17 @@ services:
     restart: always
     depends_on:
       - db
-    networks:
-      - backend
+    environment:
+    - IN_DOCKER=True
+    # networks:
+    #   - backend
     volumes:
-      - $HOME/repos/z-pablo/jobjob:/home/ubuntu/jobjob
+      - /Users/pablo.sanderson/repos/z-pablo/jobjob:/home/ubuntu/jobjob
+    command: uvicorn jobjob.spider_app.spider_api:app --reload --host 0.0.0.0 --port 8001
 
   webapp:
     build: ./webapp 
+    container_name: webapp
     ports:
       - "8000:8000"
     expose:
@@ -24,25 +29,29 @@ services:
     restart: always
     depends_on:
       - db
-    networks:
-      - backend
+    environment:
+    - IN_DOCKER=True
+    # networks:
+    #   - backend
     volumes:
-      - $HOME/repos/z-pablo/jobjob:/home/ubuntu/jobjob
+      - /Users/pablo.sanderson/repos/z-pablo/jobjob:/home/ubuntu/jobjob
+    command: uvicorn jobjob.webapp.webapp_api:app --reload --host 0.0.0.0 --port 8000
 
   db:
     image: postgres:12
+    container_name: db
     ports:
       - "5432:5432"
     volumes:
-      - $HOME/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data
+      - /Users/pablo.sanderson/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data
     environment:
         POSTGRES_PASSWORD: postgres
     restart: always
-    networks:
-      - backend
+    # networks:
+    #   - backend
 
-networks:
-  backend:
+# networks:
+#   backend:
 
 # frontend:
 # queue:

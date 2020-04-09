@@ -2,8 +2,8 @@ import requests
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from database_app import crud, database, models
-from database_app.database import Base, engine
+from jobjob.database_app import crud, database, models
+from jobjob.database_app.database import Base, engine
 
 Base.metadata.create_all(bind=engine)
 
@@ -11,7 +11,7 @@ app = FastAPI()
 
 NAME_OF_SPIDER_CONTAINER = "spider"
 
-
+print("IT WROKED")
 def append_query(func_name: str, query: str):
     """Returns a full url for a given function with a query parameter """
     return app.url_path_for(func_name) + f"?q={query}"

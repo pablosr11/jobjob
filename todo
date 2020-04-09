@@ -1,10 +1,12 @@
 - tests + ci/cd pipeline
     - test crud operations
+        https://testdriven.io/blog/fastapi-crud/ (Mock the post/get etc)
         https://medium.com/@mariusz.raczynski2/pytest-mock-how-to-mock-your-database-connection-5c84docker 
         https://stackoverflow.com/questions/23325669/writting-py-test-for-sqlalchemy-app
+        https://auth0.com/blog/sqlalchemy-orm-tutorial-for-python-developers/
 - basic react fonrtend
 - proper logging to debug containers
-- change passwords, add best practices to store them etc, 
+- change passwords, add best practices to store them etc, - we have to run uviron from /home/ubuntu because inside it woudnt find jobjob and causes everything to crash
 - Dockerfiles (environment, build images etc)
 
 - master/slave Databases
@@ -26,7 +28,7 @@ docker-compose up --build
 ================================================
 ===== DATABASE
 # Auto remove container on stop, and store data under postgres-data
-docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12
+docker run --rm --name db-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 -v $HOME/repos/z-pablo/thejobjob/.docker_volumes/postgres:/var/lib/postgresql/data -d postgres:12
 
 # get in
 docker exec -it db-pg psql -U postgres
