@@ -6,12 +6,14 @@ from fastapi import BackgroundTasks
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
-from jobjob.database_app.database import create_db_str, db_config
+from jobjob.database_app.database import create_db_str, db_config, Base
 from jobjob.spider_app.spider_api import app as spider_app
 from jobjob.webapp.webapp_api import app as webapp_app
 
 db_config["name"] = "test_db"
-engine = create_engine(create_db_str(db_config), echo=True)
+engine = create_engine(create_db_str(db_config), echo=False)
+Base.metadata.create_all(bind=engine)
+
 
 @pytest.fixture(scope="module")
 def test_spider_app():
