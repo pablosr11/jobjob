@@ -13,8 +13,8 @@ from urllib import error, parse, request
 import feedparser
 from lxml.html import HtmlElement, fromstring, tostring
 
-from database_app import crud, models
-from database_app.database import SessionLocal, engine
+from jobjob.database_app import crud, models
+from jobjob.database_app.database import SessionLocal
 
 GET_TIMEOUT = 10  # how long do we wait per request? the read timeout comes from here
 URL_HEADERS = "https://udger.com/resources/ua-list/browser-detail?browser=Chrome"
@@ -452,5 +452,5 @@ def crawl(spider: BaseSpider):
         sleep(random() * SLEEP_BETWEEN_BATCHES)
 
 
-if __name__ == "__main__":
-    trigger_spider("machine learning")
+# if __name__ == "__main__":
+#     trigger_spider("machine learning")

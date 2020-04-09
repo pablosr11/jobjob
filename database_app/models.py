@@ -2,7 +2,7 @@ from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer, String,
                         Text)
 from sqlalchemy.orm import relationship
 
-from database_app.database import Base
+from jobjob.database_app.database import Base
 
 
 class Job(Base):

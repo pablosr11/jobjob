@@ -1,6 +1,6 @@
 from fastapi import BackgroundTasks, FastAPI
 
-from spider_app.spider import trigger_spider
+from jobjob.spider_app.spider import trigger_spider
 
 app = FastAPI()
 
