@@ -1,3 +1,13 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from jobjob.spider_app.spider_api import app
+
+
+@pytest.fixture(scope="module")
+def test_spider_app():
+    client = TestClient(app)
+    yield client  # testing happens here
 
 def test_get_homepage(test_spider_app):
     response = test_spider_app.get("/")
