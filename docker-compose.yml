@@ -11,13 +11,9 @@ services:
     restart: always
     depends_on:
       - db
-    environment:
-    - IN_DOCKER=True
-    # networks:
-    #   - backend
     volumes:
       - /Users/pablo.sanderson/repos/z-pablo/jobjob:/home/ubuntu/jobjob
-    command: uvicorn jobjob.spider_app.spider_api:app --reload --host 0.0.0.0 --port 8001
+    command: /bin/bash -c "sleep 5; uvicorn jobjob.spider_app.spider_api:app --reload --host 0.0.0.0 --port 8001" 
 
   webapp:
     build: ./webapp 
@@ -29,13 +25,9 @@ services:
     restart: always
     depends_on:
       - db
-    environment:
-    - IN_DOCKER=True
-    # networks:
-    #   - backend
     volumes:
       - /Users/pablo.sanderson/repos/z-pablo/jobjob:/home/ubuntu/jobjob
-    command: uvicorn jobjob.webapp.webapp_api:app --reload --host 0.0.0.0 --port 8000
+    command: /bin/bash -c "sleep 5; uvicorn jobjob.webapp.webapp_api:app --reload --host 0.0.0.0 --port 8000"
 
   db:
     image: postgres:12

@@ -12,7 +12,7 @@ def create_db_str(config: Dict) -> str:
 db_config = {
     "user": "postgres",
     "pass": "postgres",
-    "host": "db" if environ.get("IN_DOCKER") else "localhost",
+    "host": "db",
     "name": "postgres"
 }
 SQLALCHEMY_DATABASE_URL = create_db_str(db_config)
