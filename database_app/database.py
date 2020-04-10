@@ -1,5 +1,5 @@
-from typing import Dict
 from os import environ
+from typing import Dict
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -20,7 +20,7 @@ SQLALCHEMY_DATABASE_URL = create_db_str(db_config)
 # create db engine
 engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=False)
 
-# Each instance of SessionLocal will be a db session
+# Each instance of SessionLocal will be a db session linked to the engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # We will inherit from Base to generate the DB models

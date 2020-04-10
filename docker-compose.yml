@@ -37,15 +37,13 @@ services:
     expose:
       - 5432
     volumes:
-      - /Users/pablo.sanderson/repos/z-pablo/jobjob/.docker_volumes/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     environment:
         POSTGRES_PASSWORD: postgres
     restart: always
-    # networks:
-    #   - backend
 
-# networks:
-#   backend:
+volumes:
+  postgres_data:
 
 # frontend:
 # queue:

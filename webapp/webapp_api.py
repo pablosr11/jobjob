@@ -2,19 +2,14 @@ import requests
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from jobjob.database_app import crud, database, models
-from jobjob.database_app.database import Base, engine
-
-Base.metadata.create_all(bind=engine)
+from jobjob.database_app import crud, models
+from jobjob.database_app.database import Base, SessionLocal, engine
 
 app = FastAPI()
 
-NAME_OF_SPIDER_CONTAINER = "spider"
+Base.metadata.create_all(bind=engine)
 
-print("IT WROKED")
-def append_query(func_name: str, query: str):
-    """Returns a full url for a given function with a query parameter """
-    return app.url_path_for(func_name) + f"?q={query}"
+NAME_OF_SPIDER_CONTAINER = "spider"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -35,7 +30,7 @@ async def homepage():
                 <input type="submit" value="find ma money">
             </form> 
         </body>
-    </html>
+    </html> 
     """
 
 
@@ -44,7 +39,7 @@ async def trigger_spider(query: str = Form("")):
     print(f"=====API - Triggering with query: {query}")
 
     # do we have to create a session everytime we access the db?
-    db = database.SessionLocal()
+    db = SessionLocal()
 
     if not crud.get_query(db, query):
         print("=====API - request to spider_api")
@@ -53,7 +48,7 @@ async def trigger_spider(query: str = Form("")):
     # add query to db here
     crud.create_query(db, models.Query(query=query))
 
-    url = append_query("triggered", query)
+    url = app.url_path_for("triggered") + f"?q={query}"
     response = RedirectResponse(url=url, status_code=303)
     
     return response
@@ -64,7 +59,7 @@ async def triggered(q: str):
 
     print("=====API - landing after triggering")
 
-    session = database.SessionLocal()
+    session = SessionLocal()
     skills = crud.get_skills_by_query_from_contents(db=session, query=q)
 
     if not skills:
@@ -89,13 +84,13 @@ async def triggered(q: str):
 
 @app.get("/jobs/{job_id}")
 async def get_job(job_id: int):
-    session = database.SessionLocal()
+    session = SessionLocal()
     job = crud.get_job(session, job_id)
     return {"job": job}
 
 
 @app.get("/jobs")
 async def get_jobs(limit: int = 5):
-    session = database.SessionLocal()
+    session = SessionLocal()
     job = crud.get_jobs(session, limit=limit)
     return {"job": job}

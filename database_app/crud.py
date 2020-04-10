@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -69,28 +71,6 @@ def create_query(db: Session, query: models.Query):
     db.commit()
     db.refresh(query)
     return query
-
-
-## deprecated as no more query-jobs relationship,
-# def create_job_queries(db: Session, query: models.Query):
-#     db.add(query)
-#     db.commit()
-#     db.refresh(query)
-#     return query
-
-
-# # get skills by jobs that are retrieved using queryX (deprecated as we dont crawl by query anymore)
-# def get_skills_by_query(db: Session, query: str, limit: int = 10):
-#     return (
-#         db.query(models.Skill.title)
-#         .join(models.Query, models.Query.job_id == models.Skill.job_id)
-#         .filter(models.Query.query == query)
-#         .group_by(models.Skill.title)
-#         .order_by(func.count(models.Skill.title).desc())
-#         .limit(limit)
-#         .all()
-#     )
-
 
 # get skills from jobs by looking at jobs that contain *query* in title or text
 def get_skills_by_query_from_contents(db: Session, query: str, limit: int = 10):
