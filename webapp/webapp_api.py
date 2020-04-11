@@ -7,6 +7,7 @@ from jobjob.database_app.database import Base, SessionLocal, engine
 
 app = FastAPI()
 
+# when testing locally, this fails as it tries to access the db from docker instead of from outside
 Base.metadata.create_all(bind=engine)
 
 NAME_OF_SPIDER_CONTAINER = "spider"
@@ -80,13 +81,6 @@ async def triggered(q: str):
         </body>
     </html>
     """
-
-
-@app.get("/jobs/{job_id}")
-async def get_job(job_id: int):
-    session = SessionLocal()
-    job = crud.get_job(session, job_id)
-    return {"job": job}
 
 
 @app.get("/jobs")
