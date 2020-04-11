@@ -59,6 +59,9 @@ def get_queries(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Query).offset(skip).limit(limit).all()
 
 
+def get_raw_data(db:Session, limit:int=5):
+    return db.query(models.JobRawData).limit(limit).all()
+
 def create_job_rawdata(db: Session, rawdata: models.JobRawData):
     db.add(rawdata)
     db.commit()

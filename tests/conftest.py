@@ -18,20 +18,24 @@ def tables(engine):
     yield
     Base.metadata.drop_all(engine)
 
-@pytest.yield_fixture
+@pytest.fixture(scope="function") # scope module?
 def db(engine, tables):
     """Returns an sqlalchemy session, and after the test tears down everything properly."""
     connection = engine.connect()
+
     # begin the nested transaction
-    transaction = connection.begin()
+    # transaction = connection.begin()
+
     # use the connection with the already started transaction
     session = Session(bind=connection)
 
     yield session
 
     session.close()
+
     # roll back the broader transaction
-    transaction.rollback()
+    # transaction.rollback()
+
     # put back the connection to the connection pool
     connection.close()
 
