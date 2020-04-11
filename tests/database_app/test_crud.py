@@ -7,13 +7,13 @@ from jobjob.database_app import crud, models
 # these should call the factories
 # move this to a factory file, create jobs in db and also just for handling
 def create_jobs(db, n=1):
-    return [crud.create_job(db, models.Job(job_id=x, title=f"Test Job {x}", link="link.com")) for x in range(1 ,n+1)]
+    return [crud.create_job(db, models.Job(job_id=x, title=f"Test Job {x}", link="link.com")) for x in range(1, n+1)]
 
 def create_skills(db, n=1):
-    return [crud.create_job_skill(db, models.Skill(title=f"Test Skill {x}")) for x in range(1 ,n+1)]
+    return [crud.create_job_skill(db, models.Skill(title=f"Test Skill {x}")) for x in range(1, n+1)]
 
 def create_details(db, n=1):
-    return [crud.create_job_detail(db, models.Detail(job_type=f"Test Detail job_type {x}")) for x in range(1 ,n+1)]
+    return [crud.create_job_detail(db, models.Detail(job_type=f"Test Detail job_type {x}")) for x in range(1, n+1)]
 
 def create_queries(db, n=1):
     return [crud.create_query(db, models.Query(query=f"Test Query {x}")) for x in range(1, n+1)]
@@ -37,11 +37,6 @@ def test_get_job_by_link_non_existant(db):
     create_jobs(db)
     job = crud.get_job_by_link(db, "linasdfasdfasdfak.com")
     assert job is None
-
-def test_get_job_by_link_invalid_type(db):
-    create_jobs(db)
-    with pytest.raises(ProgrammingError) as f:
-        job = crud.get_job_by_link(db, 1)
 
 def test_get_jobs_one_job(db):
     created = create_jobs(db)
@@ -91,7 +86,7 @@ def test_create_raw_data(db):
 # sames as previous test
 def test_get_skills_by_query(db):
     skill = "Test"
-    created_jobs = create_jobs(db,5)
+    created_jobs = create_jobs(db, 5)
     crud.create_job_skill(db, models.Skill(title=skill, job_id=created_jobs[0].job_id))
     skills = crud.get_skills_by_query_from_contents(db, skill)
     assert skills

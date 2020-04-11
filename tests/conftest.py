@@ -31,6 +31,7 @@ def db(engine, tables):
 
     yield session
 
+    session.rollback()
     session.close()
 
     # roll back the broader transaction
