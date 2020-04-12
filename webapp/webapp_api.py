@@ -1,15 +1,22 @@
+from os import environ
+
 import requests
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import create_engine
 
 from jobjob.database_app import crud, models
 from jobjob.database_app.database import Base, SessionLocal, engine
 
 app = FastAPI()
 
-# when testing locally, this fails as it tries to access the db from docker instead of from outside
-Base.metadata.create_all(bind=engine)
+def create_tables(engine=engine):
+    if environ.get("testing"):
+        engine = create_engine('postgres://postgres:postgres@localhost/test_db')
+        del environ["testing"]
+    Base.metadata.create_all(bind=engine)
 
+create_tables()
 NAME_OF_SPIDER_CONTAINER = "spider"
 
 

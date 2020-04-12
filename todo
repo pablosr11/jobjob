@@ -1,9 +1,7 @@
 - tests + ci/cd pipeline
-    - test crud operations
-        https://testdriven.io/blog/fastapi-crud/ (Mock the post/get etc)
-        https://medium.com/@mariusz.raczynski2/pytest-mock-how-to-mock-your-database-connection-5c84docker 
-        https://stackoverflow.com/questions/23325669/writting-py-test-for-sqlalchemy-app
-        https://auth0.com/blog/sqlalchemy-orm-tutorial-for-python-developers/
+    - Test spider
+    - where do we put the factories? fixture vs factories
+- autoformat, autosort on commit?
 - basic react fonrtend
 - proper logging to debug containers
 - change passwords, add best practices to store them etc, - we have to run uviron from /home/ubuntu because inside it woudnt find jobjob and causes everything to crash

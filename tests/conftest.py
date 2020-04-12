@@ -1,3 +1,4 @@
+from os import environ
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from jobjob.database_app.models import Base  # Base loaded with the models
 
+environ["testing"] = "1"
 
 @pytest.fixture(scope='session')
 def engine():
