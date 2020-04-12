@@ -42,12 +42,12 @@ class BaseSpider(ABC):
             yield lst[i : i + chunk]
 
     @classmethod
-    def crawling_batches(cls, links: List[str]):
-        return cls.chunks(links, CRAWLING_BATCH)
+    def crawling_batches(cls, links: List[str], chunk: int = CRAWLING_BATCH):
+        return cls.chunks(links, chunk)
 
     @abstractmethod
     def add_job(self, data):
-        ...
+        """To be instantiated in child class """
 
 
 class SOSpider(BaseSpider):
@@ -75,11 +75,13 @@ class SOSpider(BaseSpider):
     # got caught by other queries
     def extract_urls_feed(self):
         """Add to_crawl links to the spider if we dont have them in the db already"""
-        self.to_crawl = [
+        all_links = [
             self.remove_parameters_url(entry["link"])
-            for entry in self.content["entries"]
-            if not crud.get_job_by_link(
-                self.db, parse.urlparse(self.remove_parameters_url(entry["link"])).path
+            for entry in self.content["entries"]]
+            
+        #filter if we have in db
+        self.to_crawl = [ link for link in all_links if not crud.get_job_by_link(
+                self.db, parse.urlparse(link).path
             )
         ]
 
