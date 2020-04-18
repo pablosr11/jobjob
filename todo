@@ -1,5 +1,5 @@
 - tests + ci/cd pipeline
-    - Test spider
+    - Test spider (mock session and fixture detail, jobs etc)
     - where do we put the factories? fixture vs factories
 - autoformat, autosort on commit?
 - basic react fonrtend
@@ -8,7 +8,7 @@
 - Dockerfiles (environment, build images etc)
 
 - master/slave Databases
-- add queues for triggering spiders and wait for results redis/kafka- celery
+- add queues for triggering spiders and wait for results redis/kafka/rq/arq/dramatiq/memcached - diff with background process is thath background process execute on same process, dramatiq/celery etc run them on new process (this is good if its heavy processing)
 - kubernetes
 - aws devops guide on reddit
 - cache to avoid hitting DB everytime
@@ -50,6 +50,7 @@ uvicorn spider_app.spider_api:app --host 0.0.0.0 --port 8001 --reload
 ====================================================================================
 ====================================================================================
 Future:
+- separate test involving DB from unit tests
 - add cache/table of skills by query to avoid hitting the DB every new search (refresh every week?)
 - weekly run of the spider for all jobs?
 - Refactor spider by responsibilities

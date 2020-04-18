@@ -421,6 +421,14 @@ def sanitise_spaces(query: str):
 def get_host(url: str):
     return parse.urlparse(url).netloc
 
+def crawl(spider: BaseSpider):
+
+    batches = list(spider.crawling_batches(spider.to_crawl))
+
+    for batch in batches[:NUMBER_OF_BATCHES]:
+        print(f"\n-- Starting {batch}\n")
+        spider.downloader.concurrent_request(batch, spider)
+        sleep(random() * SLEEP_BETWEEN_BATCHES)
 
 def trigger_spider(query: str):
 
@@ -435,6 +443,7 @@ def trigger_spider(query: str):
         # feed_tree = feedparser.parse(r"pythonlondon60k.txt")
     except RuntimeError as exc:
         print("Error while parsing the url - Try standard request")
+        #stop but notify
         raise exc
 
     spider = MAPPING_SPIDER[host](feed_tree)
@@ -442,17 +451,3 @@ def trigger_spider(query: str):
     crawl(spider)
 
     print(f"\n\nFinished --------\n")
-
-
-def crawl(spider: BaseSpider):
-
-    batches = list(spider.crawling_batches(spider.to_crawl))
-
-    for batch in batches[:NUMBER_OF_BATCHES]:
-        print(f"\n-- Starting {batch}\n")
-        spider.downloader.concurrent_request(batch, spider)
-        sleep(random() * SLEEP_BETWEEN_BATCHES)
-
-
-# if __name__ == "__main__":
-#     trigger_spider("machine learning")
